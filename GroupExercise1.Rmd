@@ -1,8 +1,8 @@
 ---
-title: "CMDA-4654  \n Homework Template"
-subtitle: "Homework XX"
-author: "Your name here"
-date: "Today's Date"
+title: "Group Exercise 1 Part A"
+subtitle: "Exploratory Data Analysis Report"
+author: "Ava Nadolski and Erik Marcinek"
+date: "09/16/2026"
 output:
   pdf_document:
     highlight: kate
@@ -78,20 +78,40 @@ knitr::opts_chunk$set(echo = TRUE,
 <!-- ---------------------------------------------------------------------------------------------------- -->
 
 
-# Problem 1
+# 1. Teammate Introduction
+<!-- 
+In the teammate introduction section, you will introduce your teammate (but not yourself).  You will provide their name, place of origin, favorite food to eat in Blacksburg, favorite hobby or pastime in Blacksburg.
+-->
 
-## Part a
+# 2. Data Introduction
+<!-- 
+* You must summarize what the data corresponds to in your own words.  It should also be very clear which data area the data belongs to.
+* Provide a brief data dictionary that describes what the variables are.
+* You will provide a link to where you originally obtained the data.  This should be in the main body, but can provided again in citations.
+* You must also provide a link to the data itself in the main body (and again in the citations).  We must be able to click on the link that you provide, we can immediately get the data without any additional effort. You may want to store the data in Google drive for this purpose.
+    * Do not upload any .csv files to canvas!
+-->
 
-Example Chunk Below
+# 3. Analysis & Discussion
+<!-- 
+* Each member must make 4 plots using their data and put it in their report, therefore 8 plots total.  Every plot must be different!  Try to be creative!
+     * Out of the four plots, only 2 can be a scatterplots (a scatterplot matrix is still a scatterplot).
+     * At most 2 of the four plots may be some kind of barplot.
+     * Univariate plots are greatly discouraged unless there are very unique patterns worth pointing out.  You should be exploring relationships between 2 or more variables.
+* Each member must make two tables containing aggregated (grouped) statistics, therefore 4 tables total.  The tables in the individual reports must be different.
+* All plots must be as professional as possible with proper titles, axes, and legends (if needed).
+* All plots and tables require discussion!
 
-```{r}
-plot(cars)
-```
+Relevant things to discuss
+You did some data cleaning, ignoring the trivial cleaning tasks, was there anything special you needed to do to clean/transform the variables in particular?
+Which variables appear to have relationships?  How would you describe these relationships?
+Did you notice any anomalies?
+Which variables would make good response variables in a predictive model?  Which of the remaining variables would make good explanatory variables?  Explain the reasoning behind your choices based solely upon your EDA.
+-->
 
+# 4. Citations
 
-```{r}
-summary(mtcars)
-```
+# 5. Appendix
 
 
 
