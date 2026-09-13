@@ -93,7 +93,6 @@ In the teammate introduction section, you will introduce your teammate (but not 
 -->
 Data used in this exploratory data analysis is from Baseball Savant, a third-party website run by the MLB, where all of their Statcast data is stored. [Here](https://baseballsavant.mlb.com/statcast_search) is a link to the Baseball Savant website, where you can filter through all wanted variables. The data used in this analysis is pitch-by-pitch data from the 2025 regular MLB season. [Here](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3PdsiJ9JdB-IF8XxnXb9x7-mVuE-XU/edit?usp=sharing) is the link to the final data obtained from Baseball Savant. Below is a brief data dictonary describing the variables within the dataset. 
 
-```{r}
 | Variable | Description |
 | -------- | -------- |
 |pitch_type|Type of pitch derived from Statcast.|
@@ -146,7 +145,6 @@ Data used in this exploratory data analysis is from Baseball Savant, a third-par
 |release_spin_rate|Spin rate of pitch tracked by Statcast|
 |release_extension|Release extension of pitch in feet as tracked by Statcast|
 |game_pk|Unique ID for Game.|
-```
 
 # 3. Analysis & Discussion
 <!-- 
