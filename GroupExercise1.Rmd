@@ -91,6 +91,62 @@ In the teammate introduction section, you will introduce your teammate (but not 
 * You must also provide a link to the data itself in the main body (and again in the citations).  We must be able to click on the link that you provide, we can immediately get the data without any additional effort. You may want to store the data in Google drive for this purpose.
     * Do not upload any .csv files to canvas!
 -->
+Data used in this exploratory data analysis is from Baseball Savant, a third-party website run by the MLB, where all of their Statcast data is stored. [Here](https://baseballsavant.mlb.com/statcast_search) is a link to the Baseball Savant website, where you can filter through all wanted variables. The data used in this analysis is pitch-by-pitch data from the 2025 regular MLB season. [Here](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3PdsiJ9JdB-IF8XxnXb9x7-mVuE-XU/edit?usp=sharing) is the link to the final data obtained from Baseball Savant. Below is a brief data dictonary describing the variables within the dataset. 
+
+```{r}
+| Variable | Description |
+| -------- | -------- |
+|pitch_type|Type of pitch derived from Statcast.|
+|game_date|Date of Game.|
+|release_speed|Pitch velocity in MPH.|
+|release_pos_x|Horizontal Release Position of the ball measured in feet from the catcher's perspective.|
+|release_pos_z|Vertical Release Position of the ball measured in feet from the catcher's perspective|
+|player_name|Pitcher's name.|
+|batter|MLB player ID tied to the play of the event.|
+|pitcher|MLB player ID tied to the play of the event.|
+|events|Event of the resulting Plate Appearance.|
+|description|Description of the resulting pitch.|
+|zone| Zone location (1 through 12) of the ball when it crosses the plate from the catchers perspective.|
+|des|Plate appearance description from game day.|
+|game_type|Will always be R = regular season.|
+|stand|Side of the plate batter is standing.|
+|p_throws|Hand pitcher throws with.|
+|home_team|Abbreviation of home team.|
+|away_team|Abbreviation of away team.|
+|type|Short hand of pitch result. B = ball, S = Strike, X = in play.|
+|hit_location|Position of first fielder to touch the ball.|
+|bb_type|Batted ball type.|
+|balls|Pre-pitch number of balls in count.|
+|strikes|Pre-pitch number of strikes in count.|
+|game_year|Year game took place. Will always be 2025.|
+|pfx_x|Horizontal movement in feet from the catcher's perspective.|
+|pfx_z|Vertical movement in feet from the catcher's perspective.|
+|plate_x|Horizontal position of the ball when it crosses home plate from the catcher's perspective.|
+|plate_z|Vertical position of the ball when it crosses home plate from the catcher's perspective.|
+|on_3b|Pre-pitch MLB player ID of Runner on 3B.|
+|on_2b|Pre-pitch MLB player ID of Runner on 2B.|
+|on_1b|Pre-pitch MLB player ID of Runner on 1B.|
+|outs_when_up|Pre-pitch number of outs.|
+|inning|Pre-pitch inning number.|
+|inning_topbot|Pre-pitch top or bottom of inning.|
+|hc_x|Hit coordinate X of batted ball.|
+|hc_y|Hit coordinate Y of batted ball.|
+|vx0|Velocity of pitch, in feet per second, in the x-dimension, determined at y=50 feet.|
+|vy0|Velocity of pitch, in feet per second, in the y-dimension, determined at y=50 feet.|
+|vz0|Velocity of pitch, in feet per second, in the z-dimension, determined at y=50 feet.|
+|ax|Acceleration of pitch, in feet per second, in the x-dimension, determined at y=50 feet.|
+|ay|Acceleration of pitch, in feet per second, in the y-dimension, determined at y=50 feet.|
+|az|Acceleration of pitch, in feet per second, in the z-dimension, determined at y=50 feet.|
+|sz_top|Top of the batter's strike zone set by the operator when the ball is halfway to the plate.|
+|sz_bot|Bottom of the batter's strike zone set by the operator when the ball is halfway to the plate.|
+|hit_distance_sc|Projected hit distance of the batted ball.|
+|launch_speed|Exit velocity of the batted ball as tracked by Statcast.|
+|launch_angle|Launch angle of the batted ball as tracked by Statcast.|
+|effective_speed|Derived speed based on the extension of the pitcher's release.|
+|release_spin_rate|Spin rate of pitch tracked by Statcast|
+|release_extension|Release extension of pitch in feet as tracked by Statcast|
+|game_pk|Unique ID for Game.|
+```
 
 # 3. Analysis & Discussion
 <!-- 
@@ -112,6 +168,6 @@ Which variables would make good response variables in a predictive model?  Which
 # 4. Citations
 
 # 5. Appendix
-
+MLB: Major League Baseball
 
 
