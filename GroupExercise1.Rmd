@@ -95,7 +95,6 @@ Data used in this exploratory data analysis is sports data from from Baseball Sa
 
 | Variable | Description |
 | -------- | -------- |
-|pitch_type|Type of pitch derived from Statcast.|
 |game_date|Date of Game.|
 |release_speed|Pitch velocity in MPH.|
 |release_pos_x|Horizontal Release Position of the ball measured in feet from the catcher's perspective.|
@@ -107,7 +106,6 @@ Data used in this exploratory data analysis is sports data from from Baseball Sa
 |description|Description of the resulting pitch.|
 |zone| Zone location (1 through 12) of the ball when it crosses the plate from the catchers perspective.|
 |des|Plate appearance description from game day.|
-|game_type|Will always be R = regular season.|
 |stand|Side of the plate batter is standing.|
 |p_throws|Hand pitcher throws with.|
 |home_team|Abbreviation of home team.|
@@ -117,7 +115,6 @@ Data used in this exploratory data analysis is sports data from from Baseball Sa
 |bb_type|Batted ball type.|
 |balls|Pre-pitch number of balls in count.|
 |strikes|Pre-pitch number of strikes in count.|
-|game_year|Year game took place. Will always be 2025.|
 |pfx_x|Horizontal movement in feet from the catcher's perspective.|
 |pfx_z|Vertical movement in feet from the catcher's perspective.|
 |plate_x|Horizontal position of the ball when it crosses home plate from the catcher's perspective.|
@@ -145,6 +142,66 @@ Data used in this exploratory data analysis is sports data from from Baseball Sa
 |release_spin_rate|Spin rate of pitch tracked by Statcast|
 |release_extension|Release extension of pitch in feet as tracked by Statcast|
 |game_pk|Unique ID for Game.|
+|fielder_2|MLB Player ID for catcher.|
+|fielder_3|MLB Player ID for 1B.|
+|fielder_4|MLB Player ID for 2B.|
+|fielder_5|MLB Player ID for 3B.|
+|fielder_6|MLB Player ID for SS.|
+|fielder_7|MLB Player ID for LF.|
+|fielder_8|MLB Player ID for CF.|
+|fielder_9|MLB Player ID for RF.|
+|release_pos_y|Release position of pitch measured in feet from the catcher's perspective.|
+|estimated_ba_using_speedangle|Estimated Batting Avg based on launch angle and exit velocity.|
+|estimated_woba_using_speedangle|Estimated wOBA based on launch angle and exit velocity.|
+|woba_value|wOBA value based on result of play.|
+|woba_denom|wOBA denominator based on result of play.|
+|babip_value|BABIP value based on result of play.|
+|iso_value|ISO value based on result of play.|
+|launch_speed_angle|Launch speed/angle zone based on launch angle and exit velocity.|
+|at_bat_number|Plate appearance number of the game.|
+|pitch_number|Total pitch number of the plate appearance.|
+|pitch_name|The name of the pitch derived from the Statcast Data.|
+|home_score|Pre-pitch home score.|
+|away_score|Pre-pitch away score.|
+|bat_score|Pre-pitch bat team score.|
+|fld_score|Pre-pitch field team score.|
+|post_away_score|Post-pitch away score.|
+|post_home_score|Post-pitch home score.|
+|post_bat_score|Post-pitch bat team score.|
+|post_fld_score||
+|if_fielding_alignment|Infield fielding alignment at the time of the pitch.|
+|of_fielding_alignment|Outfield fielding alignment at the time of the pitch.|
+|spin_axis|The Spin Axis in the 2D X-Z plane in degrees from 0 to 360.|
+|delta_home_win_exp|The change in Win Expectancy before the Plate Appearance and after.|
+|delta_run_exp|The change in Run Expectancy before the Plate Appearance and after|
+|bat_speed||
+|swing_length||
+|miss_distance||
+|estimated_slg_using_speedangle||
+|delta_pitcher_run_exp||
+|hyper_speed|Adjusted Exit Velocity. Sets every batted ball hit below 88mph as 88mph|
+|home_score_diff|Home score minus Away score.|
+|bat_score_diff|Batting team score less Pitching team score.|
+|home_win_exp|Home team win expectancy.|
+|bat_win_exp|Bat team win expectancy.|
+|age_pit_legacy|Pitcher age on 6/30.|
+|age_bat_legacy|Batter age on 6/30.|
+|age_pit|Pitcher age on 12/31.|
+|age_bat|Batter age on 12/31.|
+|n_thruorder_pitcher|Pitcher times through order.|
+|n_priorpa_thisgame_player_at_bat|Number of prior Plate Appearances in this game for this batter.|
+|pitcher_days_since_prev_game|Number of days sinces pitcher's last game.|
+|batter_days_since_prev_game|Number of days since batter's last game.|
+|pitcher_days_until_next_game|Number of days until pitcher's next game.|
+|api_break_z_with_gravity|Vertical break with gravity included.|
+|api_break_x_arm|Break, in inches, of a pitch toward the batter's side of the plate.|
+|api_break_x_batter_in|Break, in inches, of a pitch toward the batter's side of plate.|
+|arm_angle|The angle between a line parallel to the ground and a l line extending from the location of the pitcher's throwing shoulder and the location of the ball at the time of the pitch.|
+|attack_angle|Measures the vertical angle of the direction in which the sweet spot of the bat is traveling as it impacts the ball, as compared to the ground.|
+|attack_direction|measures the horizontal angle of the direction in which the sweet spot of the bat is traveling as it impacts the ball, as compared to a line from home plate to straightaway center field.|
+|swing_path_tilt|The vertical angular orientation of the "plane" of the swing, as compared to the ground, defined by the path of the bat in the 40 ms prior to contact.|
+|intercept_ball_minus_batter_pos_x_inches|Distance, in inches, between the intercept point of the bat/ball and the batter's center of mass, in the X (horizontal) direction.|
+|intercept_ball_minus_batter_pos_y_inches|Distance, in inches, between the intercept point of the bat/ball and the batter's center of mass, in the Y (mound-to-plate) direction.|
 
 # 3. Analysis & Discussion
 <!-- 
@@ -166,17 +223,25 @@ Plot 1:
 
 ![Plot 1](/Users/avanadolski/Desktop/Strike%20Percentage%20by%20Pitch%20Type.png){width="50%"}
 
+The plot represents the strike percentage of all the specific pitch types. Throwing strikes is your goal as the pitcher, so knowing what gives you the best chances is important. Something worth noting are that the top three variables that have the highest strike percentage are all considered fastballs.
+
 Plot 2: 
 
 ![Plot 2](/Users/avanadolski/Desktop/Accuracy%20Strike%20Zone.png){width="50%"}
+
+Plot 2 represents the accuracy of pitches within the strike zone. The red box is the average strike zone of any given batter. In connection with the above plot, it is important to throw within the strike zone because you want to through strikes. 
 
 Plot 3:
 
 ![Plot 3](/Users/avanadolski/Desktop/Common%20Pitch%20by%20Count.png){width="50%"}
 
+Plot 3 shows the proportion of pitches thrown given a specifc ball-strike count. Overwhelmingly, fastballs are most popular pitch over all counts. It is most dominant on a 3-0 count, when a pitcher is one throw away from walking a batter to first base. In connection from plot 1, throwing a fastball seems probable from a pitcher because it has the highest chance of resulting in a strike. 
+
 Plot 4:
 
 ![Plot 4](/Users/avanadolski/Desktop/Pitch%20Outcome%20by%20Velo.png){width="50%"}
+
+Plot 4 shows the distribution of pitching velocity within the possible outcomes of a pitch. Something that sticks out is that the mean velocity when the pitch results in a swinging strike is the lowest out of all the other outcomes. Most likely the cause is that batters swing on a disguised fastball such as a change up. 
 
 Plot 5:
 
