@@ -91,7 +91,7 @@ In the teammate introduction section, you will introduce your teammate (but not 
 * You must also provide a link to the data itself in the main body (and again in the citations).  We must be able to click on the link that you provide, we can immediately get the data without any additional effort. You may want to store the data in Google drive for this purpose.
     * Do not upload any .csv files to canvas!
 -->
-Data used in this exploratory data analysis is from Baseball Savant, a third-party website run by the MLB, where all of their Statcast data is stored. [Here](https://baseballsavant.mlb.com/statcast_search) is a link to the Baseball Savant website, where you can filter through all wanted variables. The data used in this analysis is pitch-by-pitch data from the 2025 regular MLB season. [Here](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3PdsiJ9JdB-IF8XxnXb9x7-mVuE-XU/edit?usp=sharing) is the link to the final data obtained from Baseball Savant. Below is a brief data dictonary describing the variables within the dataset. 
+Data used in this exploratory data analysis is sports data from from Baseball Savant, a third-party website run by the MLB, where all of their Statcast data is stored. [Here](https://baseballsavant.mlb.com/statcast_search) is a link to the Baseball Savant website, where you can filter through all wanted variables. The data used in this analysis is pitch-by-pitch data from the 2025 regular MLB season with 25,000 observations. [Here](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3PdsiJ9JdB-IF8XxnXb9x7-mVuE-XU/edit?usp=sharing) is the link to the final data obtained from Baseball Savant. Below is a brief data dictionary describing the variables within the dataset. 
 
 | Variable | Description |
 | -------- | -------- |
@@ -162,10 +162,159 @@ Which variables appear to have relationships?  How would you describe these rela
 Did you notice any anomalies?
 Which variables would make good response variables in a predictive model?  Which of the remaining variables would make good explanatory variables?  Explain the reasoning behind your choices based solely upon your EDA.
 -->
+Plot 1: 
+
+![Plot 1](/Users/avanadolski/Desktop/Strike%20Percentage%20by%20Pitch%20Type.png){width="50%"}
+
+Plot 2: 
+
+![Plot 2](/Users/avanadolski/Desktop/Accuracy%20Strike%20Zone.png){width="50%"}
+
+Plot 3:
+
+![Plot 3](/Users/avanadolski/Desktop/Common%20Pitch%20by%20Count.png){width="50%"}
+
+Plot 4:
+
+![Plot 4](/Users/avanadolski/Desktop/Pitch%20Outcome%20by%20Velo.png){width="50%"}
+
+Plot 5:
+
+![Plot 5]("")
+
+Plot 6:
+
+![Plot 6]("")
+
+Plot 7:
+
+![Plot 7]("")
+
+Plot 8:
+
+![Plot 8]("")
+
+Table 1:
+
+Table 2:
+
+Table 3:
+
+Table 4:
+
 
 # 4. Citations
 
 # 5. Appendix
+**Definitions:**
 MLB: Major League Baseball
+Statcast: An advanced tracking system used by the MLB to collect and analyze precise data on every play, player movement, pitch, and hit in real time.
+
+**Code:**
+Needed imports: tidyverse, ggplot2
+
+Plot 1: 
+```{r}
+noNA <- baseballData[!is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
+pitch_summary <- aggregate(
+  type ~ pitch_name,
+  data = noNA,
+  FUN = function(x) c(n = length(x), strike_pct = mean(x %in% c("S", "X")) * 100))
+
+pitch_summary <- data.frame(
+  pitch_name = pitch_summary$pitch_name,
+  n_pitches = pitch_summary$type[, "n"],
+  strike_pct = pitch_summary$type[, "strike_pct"]
+)
+
+pitch_summary <- pitch_summary[pitch_summary$n_pitches >= 10, ]
+
+ggplot(pitch_summary, aes(x = reorder(pitch_name, strike_pct), y = strike_pct)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = round(strike_pct, 1)), hjust = -0.1) +
+  coord_flip() +
+  labs(
+    title = "Strike Percentage by Pitch Type",
+    x = "Pitch Type",
+    y = "Strike %"
+  ) +
+  theme_minimal()
+```
+
+Plot 2:
+```{r}
+# Average zone boundaries across all pitches (a reasonable approximation)
+zone_top <- mean(baseballData$sz_top, na.rm = TRUE)
+zone_bot <- mean(baseballData$sz_bot, na.rm = TRUE)
+
+ggplot(baseballData, aes(x = plate_x, y = plate_z)) +
+  geom_point(alpha = 0.4, color = "black") +
+  annotate("rect", xmin = -0.85, xmax = 0.85, ymin = zone_bot, ymax = zone_top,
+           fill = NA, color = "red", linewidth = 1) +
+  coord_fixed() +
+  labs(
+    title = "Accuracy of Pitches With in the Strike Zone",
+    x = "Horizontal Location",
+    y = "Vertical Location"
+  ) +
+  theme_minimal()
+```
+
+Plot 3:
+```{r}
+fastballs <- c("4-Seam Fastball", "Sinker", "Cutter", "Fastball")
+breaking  <- c("Slider", "Curveball", "Sweeper", "Slurve", "Knuckle Curve", "Screwball", "Slow Curve")
+offspeed  <- c("Changeup", "Splitter", "Forkball", "Eephus", "Knuckleball", "Slurve")
+
+pitch_group <- ifelse(
+  baseballData$pitch_name %in% fastballs, "Fastball",
+  ifelse(baseballData$pitch_name %in% breaking, "Breaking Ball",
+  ifelse(baseballData$pitch_name %in% offspeed, "Offspeed", "Other"))
+)
+
+count <- paste(clean_data$balls, clean_data$strikes, sep = "-")
+count_order <- c("0-0","0-1","0-2","1-0","1-1","1-2","2-0","2-1","2-2","3-0","3-1","3-2")
+count <- factor(count, levels = count_order)
+
+ggplot(clean_data, aes(x = count, fill = pitch_group)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = c(
+    "Fastball" = 'darkblue',
+    "Breaking Ball" = "blue",
+    "Offspeed" = "lightblue",
+    "Other" = "grey"
+  )) +
+  labs(
+    title = "Which Pitch is Most Common Given a Specific Count",
+    x = "Count (Balls-Strikes)",
+    y = "Proportion of Pitches",
+    fill = "Pitch Category"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Plot 4:
+```{r}
+noNA <- baseballData[!is.na(baseballData$release_speed) & !is.na(baseballData$description), ]
+
+outcome <- ifelse(
+  noNA$description %in% c("ball", "blocked_ball"), "Ball",
+  ifelse(noNA$description %in% c("called_strike"), "Strike",
+  ifelse(noNA$description %in% c("swinging_strike", "swinging_strike_blocked"), "Swinging Strike",
+  ifelse(noNA$description == "foul", "Foul",
+  ifelse(noNA$description == "hit_into_play", "In Play", "Other")))))
+
+ggplot(noNA, aes(x = outcome, y = release_speed, fill = outcome)) +
+  geom_boxplot() +
+  labs(
+    title = "Pitch Outcome Given Distribution of Pitch Velocity",
+    x = "Pitch Outcome",
+    y = "Pitching Velocity (mph)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
 
 
