@@ -87,6 +87,7 @@ library(tidyverse)
 <!-- 
 In the teammate introduction section, you will introduce your teammate (but not yourself).  You will provide their name, place of origin, favorite food to eat in Blacksburg, favorite hobby or pastime in Blacksburg.
 -->
+Erik Marcinek is a senior from Ellicott City, Maryland. While in Blacksburg, he enjoys the orange chicken from Panda Express. In his free time, Erik likes to go hiking around the area. He mentions that the cascades hike, about 30 minutes from Blacksburg, is a good hike. 
 
 # 2. Data Introduction
 <!-- 
@@ -179,11 +180,6 @@ Data used in this exploratory data analysis is sports data from from Baseball Sa
 |spin_axis|The Spin Axis in the 2D X-Z plane in degrees from 0 to 360.|
 |delta_home_win_exp|The change in Win Expectancy before the Plate Appearance and after.|
 |delta_run_exp|The change in Run Expectancy before the Plate Appearance and after|
-|bat_speed||
-|swing_length||
-|miss_distance||
-|estimated_slg_using_speedangle||
-|delta_pitcher_run_exp||
 |hyper_speed|Adjusted Exit Velocity. Sets every batted ball hit below 88mph as 88mph|
 |home_score_diff|Home score minus Away score.|
 |bat_score_diff|Batting team score less Pitching team score.|
@@ -224,12 +220,12 @@ Which variables appear to have relationships?  How would you describe these rela
 Did you notice any anomalies?
 Which variables would make good response variables in a predictive model?  Which of the remaining variables would make good explanatory variables?  Explain the reasoning behind your choices based solely upon your EDA.
 -->
+
 ## Plot 1: 
 
 ![Plot 1](/Users/avanadolski/Desktop/Strike%20Percentage%20by%20Pitch%20Type.png){width="40%"}
 
-The plot represents the strike percentage of all the specific pitch types. Throwing strikes is your goal as the pitcher, so knowing what gives you the best chances is important. Something worth noting are that the top three variables that have the highest strike percentage are all considered fastballs.
-
+The plot represents the strike percentage of all the specific pitch types. When throwing strikes is your goal as the pitcher, knowing what gives you the best chances is important. Therefore, a variable such as strike percentage would make a good predictive variable. Something worth noting is that the top three variables that have the highest strike percentage are all considered fastballs.
 
 
 ## Plot 2: 
@@ -239,7 +235,6 @@ The plot represents the strike percentage of all the specific pitch types. Throw
 Plot 2 represents the accuracy of pitches within the strike zone. The red box is the average strike zone of any given batter. In connection with the above plot, it is important to throw within the strike zone because you want to through strikes. 
 
 
-
 ## Plot 3:
 
 ![Plot 3](/Users/avanadolski/Desktop/Common%20Pitch%20by%20Count.png){width="40%"}
@@ -247,13 +242,11 @@ Plot 2 represents the accuracy of pitches within the strike zone. The red box is
 Plot 3 shows the proportion of pitches thrown given a specifc ball-strike count. Overwhelmingly, fastballs are most popular pitch over all counts. It is most dominant on a 3-0 count, when a pitcher is one throw away from walking a batter to first base. In connection from plot 1, throwing a fastball seems probable from a pitcher because it has the highest chance of resulting in a strike. 
 
 
-
 ## Plot 4:
 
 ![Plot 4](/Users/avanadolski/Desktop/Pitch%20Outcome%20by%20Velo.png){width="40%"}
 
-Plot 4 shows the distribution of pitching velocity within the possible outcomes of a pitch. Something that sticks out is that the mean velocity when the pitch results in a swinging strike is the lowest out of all the other outcomes. Most likely the cause is that batters swing on a disguised fastball such as a change up. 
-
+Plot 4 shows the distribution of pitching velocity within the possible outcomes of a pitch. Something that sticks out is that the mean velocity when the pitch results in a swinging strike is the lowest out of all the other outcomes. Most likely the cause is when batters swing on a disguised fastball, such as a change up. 
 
 
 ## Plot 5:
@@ -323,13 +316,21 @@ pitch_movement <- pitch_movement[order(-pitch_movement$avg_spin_rate), ]
 # display table
 pitch_movement
 ```
+According to the table above, breaking balls have the highest spin rates, and this is no suprise. Spin rate directly encourages break, as a the strong spin forces the ball to break, called Magnus Force (Rpp, 2021). In other words, the spinning baseball drags air faster towards one side as it reaches Homeplate. The ball is in a state of high pressure and moves where there is low pressure. You can see where the ball moves in the horizontal and vertical break. For example, a high spin rate pitch such as a curve ball has strong downward vertical movement (-0.8647). 
+
 
 ## Table 3:
 
 ## Table 4:
 
 
+\newpage
+
 # 4. Citations
+
+Rpp. (2021, May 11). Baseball spin axis, spin rate, spin efficiency explained. RPP Baseball. https://rocklandpeakperformance.com/baseball-spin-axis-spin-rate-spin-efficiency-explained/ 
+
+Statcast search | baseballsavant.com. (n.d.). https://baseballsavant.mlb.com/statcast_search 
 
 \newpage
 
