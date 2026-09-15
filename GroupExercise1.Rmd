@@ -260,8 +260,56 @@ Plot 8:
 ![Plot 8]("")
 
 Table 1:
+```{r, echo=FALSE}
+# get first pitches (where count is 0-0)
+first_pitch_data <- baseballData[baseballData$balls == 0 & baseballData$strikes == 0 &
+                                   !is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
+
+# total number of first pitches
+n_total_first_pitches <- nrow(first_pitch_data)
+
+# counting number of first pitches to a specific pitch
+n_pitches <- tapply(first_pitch_data$type, first_pitch_data$pitch_name, length)
+
+# create table
+first_pitch <- data.frame(
+  pitch_name = names(n_pitches),
+  n_pitches = as.numeric(n_pitches),
+  pct_of_first_pitches = round((as.numeric(n_pitches) / n_total_first_pitches * 100), 2)
+)
+
+# order table in decreasing number of pitches
+first_pitch <- first_pitch[order(-first_pitch$n_pitches), ]
+
+# display table
+first_pitch
+```
+Table 1 represents, given the first pitch of an at-bat, what pitch type is most common. As shown in the table above, the classic four-seam fastball is overwhelmingly the favored pitch type. 
 
 Table 2:
+```{r, echo=FALSE}
+# counting horizontal break values by pitch name
+pitch_name = tapply(baseballData$pfx_x, baseballData$pitch_name, length)
+
+# calculating the mean of horizontal/vertical break and spin rate  by pitch name
+avg_horizontal_break <- tapply(baseballData$pfx_x, baseballData$pitch_name, mean, na.rm = TRUE)
+avg_vertical_break <- tapply(baseballData$pfx_z, baseballData$pitch_name, mean, na.rm = TRUE)
+avg_spin_rate <- tapply(baseballData$release_spin_rate, baseballData$pitch_name, mean, na.rm = TRUE)
+
+# create the data frame, rounding when needed
+pitch_movement <- data.frame(
+  pitch_name = names(pitch_name),
+  avg_spin_rate = round((as.numeric(avg_spin_rate)), 2),
+  avg_horizontal_break = round((as.numeric(abs(avg_horizontal_break))), 4),
+  avg_vertical_break = round((as.numeric(avg_vertical_break)), 4)
+  )
+
+# order by decreasing spin rate
+pitch_movement <- pitch_movement[order(-pitch_movement$avg_spin_rate), ]
+
+# display table
+pitch_movement
+```
 
 Table 3:
 
@@ -280,20 +328,27 @@ Needed imports: tidyverse, ggplot2
 
 Plot 1: 
 ```{r}
-noNA <- baseballData[!is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
+# remove null values
+baseballData_clean <- baseballData[!is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
+
+# aggregate pitch name into strike percentage categories
 pitch_summary <- aggregate(
   type ~ pitch_name,
-  data = noNA,
+  data = baseballData_clean,
+  # calculating strike percentage
   FUN = function(x) c(n = length(x), strike_pct = mean(x %in% c("S", "X")) * 100))
 
+# put all values into a new data frame
 pitch_summary <- data.frame(
   pitch_name = pitch_summary$pitch_name,
   n_pitches = pitch_summary$type[, "n"],
   strike_pct = pitch_summary$type[, "strike_pct"]
 )
 
+# remove pitches that are rare
 pitch_summary <- pitch_summary[pitch_summary$n_pitches >= 10, ]
 
+# create plot
 ggplot(pitch_summary, aes(x = reorder(pitch_name, strike_pct), y = strike_pct)) +
   geom_col(fill = "steelblue") +
   geom_text(aes(label = round(strike_pct, 1)), hjust = -0.1) +
@@ -308,12 +363,14 @@ ggplot(pitch_summary, aes(x = reorder(pitch_name, strike_pct), y = strike_pct)) 
 
 Plot 2:
 ```{r}
-# Average zone boundaries across all pitches (a reasonable approximation)
+# calculate average zone boundaries across all pitches
 zone_top <- mean(baseballData$sz_top, na.rm = TRUE)
 zone_bot <- mean(baseballData$sz_bot, na.rm = TRUE)
 
+# create plot
 ggplot(baseballData, aes(x = plate_x, y = plate_z)) +
   geom_point(alpha = 0.4, color = "black") +
+  # add strike zone
   annotate("rect", xmin = -0.85, xmax = 0.85, ymin = zone_bot, ymax = zone_top,
            fill = NA, color = "red", linewidth = 1) +
   coord_fixed() +
@@ -327,21 +384,26 @@ ggplot(baseballData, aes(x = plate_x, y = plate_z)) +
 
 Plot 3:
 ```{r}
+# define more general pitch type groupings
 fastballs <- c("4-Seam Fastball", "Sinker", "Cutter", "Fastball")
 breaking  <- c("Slider", "Curveball", "Sweeper", "Slurve", "Knuckle Curve", "Screwball", "Slow Curve")
 offspeed  <- c("Changeup", "Splitter", "Forkball", "Eephus", "Knuckleball", "Slurve")
 
+# group pitch types based on the above groupings
 pitch_group <- ifelse(
   baseballData$pitch_name %in% fastballs, "Fastball",
   ifelse(baseballData$pitch_name %in% breaking, "Breaking Ball",
   ifelse(baseballData$pitch_name %in% offspeed, "Offspeed", "Other"))
 )
 
-count <- paste(clean_data$balls, clean_data$strikes, sep = "-")
+# combine balls and strikes into one value
+count <- paste(baseballData$balls, baseballData$strikes, sep = "-")
+# factor new count variable
 count_order <- c("0-0","0-1","0-2","1-0","1-1","1-2","2-0","2-1","2-2","3-0","3-1","3-2")
 count <- factor(count, levels = count_order)
 
-ggplot(clean_data, aes(x = count, fill = pitch_group)) +
+# create plot
+ggplot(baseballData, aes(x = count, fill = pitch_group)) +
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
   scale_fill_manual(values = c(
@@ -362,8 +424,10 @@ ggplot(clean_data, aes(x = count, fill = pitch_group)) +
 
 Plot 4:
 ```{r}
-noNA <- baseballData[!is.na(baseballData$release_speed) & !is.na(baseballData$description), ]
+# remove null values
+baseballData_clean <- baseballData[!is.na(baseballData$release_speed) & !is.na(baseballData$description), ]
 
+# group outcomes into more general categories
 outcome <- ifelse(
   noNA$description %in% c("ball", "blocked_ball"), "Ball",
   ifelse(noNA$description %in% c("called_strike"), "Strike",
@@ -371,6 +435,7 @@ outcome <- ifelse(
   ifelse(noNA$description == "foul", "Foul",
   ifelse(noNA$description == "hit_into_play", "In Play", "Other")))))
 
+# create plot
 ggplot(noNA, aes(x = outcome, y = release_speed, fill = outcome)) +
   geom_boxplot() +
   labs(
@@ -381,5 +446,32 @@ ggplot(noNA, aes(x = outcome, y = release_speed, fill = outcome)) +
   theme_minimal() +
   theme(legend.position = "none")
 ```
+
+Table 1:
+```{r}
+# get first pitches (where count is 0-0)
+first_pitch_data <- baseballData[baseballData$balls == 0 & baseballData$strikes == 0 &
+                                   !is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
+
+# total number of first pitches
+n_total_first_pitches <- nrow(first_pitch_data)
+
+# counting number of first pitches to a specific pitch
+n_pitches <- tapply(first_pitch_data$type, first_pitch_data$pitch_name, length)
+
+# create table
+first_pitch <- data.frame(
+  pitch_name = names(n_pitches),
+  n_pitches = as.numeric(n_pitches),
+  pct_of_first_pitches = round((as.numeric(n_pitches) / n_total_first_pitches * 100), 2)
+)
+
+# order table in decreasing number of pitches
+first_pitch <- first_pitch[order(-first_pitch$n_pitches), ]
+
+# display table
+first_pitch
+```
+
 
 
