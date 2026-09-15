@@ -77,6 +77,11 @@ knitr::opts_chunk$set(echo = TRUE,
 <!-- ---------------- Homework Problems start below these lines ----------------------------------------- -->
 <!-- ---------------------------------------------------------------------------------------------------- -->
 
+```{r, echo=FALSE}
+baseballData <- read.csv("/Users/avanadolski/Desktop/savant_data.csv")
+library(ggplot2)
+library(tidyverse)
+```
 
 # 1. Teammate Introduction
 <!-- 
@@ -219,47 +224,55 @@ Which variables appear to have relationships?  How would you describe these rela
 Did you notice any anomalies?
 Which variables would make good response variables in a predictive model?  Which of the remaining variables would make good explanatory variables?  Explain the reasoning behind your choices based solely upon your EDA.
 -->
-Plot 1: 
+## Plot 1: 
 
-![Plot 1](/Users/avanadolski/Desktop/Strike%20Percentage%20by%20Pitch%20Type.png){width="50%"}
+![Plot 1](/Users/avanadolski/Desktop/Strike%20Percentage%20by%20Pitch%20Type.png){width="40%"}
 
 The plot represents the strike percentage of all the specific pitch types. Throwing strikes is your goal as the pitcher, so knowing what gives you the best chances is important. Something worth noting are that the top three variables that have the highest strike percentage are all considered fastballs.
 
-Plot 2: 
 
-![Plot 2](/Users/avanadolski/Desktop/Accuracy%20Strike%20Zone.png){width="50%"}
+
+## Plot 2: 
+
+![Plot 2](/Users/avanadolski/Desktop/Accuracy%20Strike%20Zone.png){width="40%"}
 
 Plot 2 represents the accuracy of pitches within the strike zone. The red box is the average strike zone of any given batter. In connection with the above plot, it is important to throw within the strike zone because you want to through strikes. 
 
-Plot 3:
 
-![Plot 3](/Users/avanadolski/Desktop/Common%20Pitch%20by%20Count.png){width="50%"}
+
+## Plot 3:
+
+![Plot 3](/Users/avanadolski/Desktop/Common%20Pitch%20by%20Count.png){width="40%"}
 
 Plot 3 shows the proportion of pitches thrown given a specifc ball-strike count. Overwhelmingly, fastballs are most popular pitch over all counts. It is most dominant on a 3-0 count, when a pitcher is one throw away from walking a batter to first base. In connection from plot 1, throwing a fastball seems probable from a pitcher because it has the highest chance of resulting in a strike. 
 
-Plot 4:
 
-![Plot 4](/Users/avanadolski/Desktop/Pitch%20Outcome%20by%20Velo.png){width="50%"}
+
+## Plot 4:
+
+![Plot 4](/Users/avanadolski/Desktop/Pitch%20Outcome%20by%20Velo.png){width="40%"}
 
 Plot 4 shows the distribution of pitching velocity within the possible outcomes of a pitch. Something that sticks out is that the mean velocity when the pitch results in a swinging strike is the lowest out of all the other outcomes. Most likely the cause is that batters swing on a disguised fastball such as a change up. 
 
-Plot 5:
+
+
+## Plot 5:
 
 ![Plot 5]("")
 
-Plot 6:
+## Plot 6:
 
 ![Plot 6]("")
 
-Plot 7:
+## Plot 7:
 
 ![Plot 7]("")
 
-Plot 8:
+## Plot 8:
 
 ![Plot 8]("")
 
-Table 1:
+## Table 1:
 ```{r, echo=FALSE}
 # get first pitches (where count is 0-0)
 first_pitch_data <- baseballData[baseballData$balls == 0 & baseballData$strikes == 0 &
@@ -286,7 +299,7 @@ first_pitch
 ```
 Table 1 represents, given the first pitch of an at-bat, what pitch type is most common. As shown in the table above, the classic four-seam fastball is overwhelmingly the favored pitch type. 
 
-Table 2:
+## Table 2:
 ```{r, echo=FALSE}
 # counting horizontal break values by pitch name
 pitch_name = tapply(baseballData$pfx_x, baseballData$pitch_name, length)
@@ -311,12 +324,14 @@ pitch_movement <- pitch_movement[order(-pitch_movement$avg_spin_rate), ]
 pitch_movement
 ```
 
-Table 3:
+## Table 3:
 
-Table 4:
+## Table 4:
 
 
 # 4. Citations
+
+\newpage
 
 # 5. Appendix
 **Definitions:**
@@ -327,7 +342,7 @@ Statcast: An advanced tracking system used by the MLB to collect and analyze pre
 Needed imports: tidyverse, ggplot2
 
 Plot 1: 
-```{r}
+```{r, results='hide', fig.show='hide'}
 # remove null values
 baseballData_clean <- baseballData[!is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
 
@@ -362,7 +377,7 @@ ggplot(pitch_summary, aes(x = reorder(pitch_name, strike_pct), y = strike_pct)) 
 ```
 
 Plot 2:
-```{r}
+```{r, results='hide', fig.show='hide'}
 # calculate average zone boundaries across all pitches
 zone_top <- mean(baseballData$sz_top, na.rm = TRUE)
 zone_bot <- mean(baseballData$sz_bot, na.rm = TRUE)
@@ -383,7 +398,7 @@ ggplot(baseballData, aes(x = plate_x, y = plate_z)) +
 ```
 
 Plot 3:
-```{r}
+```{r, results='hide', fig.show='hide'}
 # define more general pitch type groupings
 fastballs <- c("4-Seam Fastball", "Sinker", "Cutter", "Fastball")
 breaking  <- c("Slider", "Curveball", "Sweeper", "Slurve", "Knuckle Curve", "Screwball", "Slow Curve")
@@ -423,20 +438,20 @@ ggplot(baseballData, aes(x = count, fill = pitch_group)) +
 ```
 
 Plot 4:
-```{r}
+```{r, results='hide', fig.show='hide'}
 # remove null values
 baseballData_clean <- baseballData[!is.na(baseballData$release_speed) & !is.na(baseballData$description), ]
 
 # group outcomes into more general categories
 outcome <- ifelse(
-  noNA$description %in% c("ball", "blocked_ball"), "Ball",
-  ifelse(noNA$description %in% c("called_strike"), "Strike",
-  ifelse(noNA$description %in% c("swinging_strike", "swinging_strike_blocked"), "Swinging Strike",
-  ifelse(noNA$description == "foul", "Foul",
-  ifelse(noNA$description == "hit_into_play", "In Play", "Other")))))
+  baseballData_clean$description %in% c("ball", "blocked_ball"), "Ball",
+  ifelse(baseballData_clean$description %in% c("called_strike"), "Strike",
+  ifelse(baseballData_clean$description %in% c("swinging_strike", "swinging_strike_blocked"), "Swinging Strike",
+  ifelse(baseballData_clean$description == "foul", "Foul",
+  ifelse(baseballData_clean$description == "hit_into_play", "In Play", "Other")))))
 
 # create plot
-ggplot(noNA, aes(x = outcome, y = release_speed, fill = outcome)) +
+ggplot(baseballData_clean, aes(x = outcome, y = release_speed, fill = outcome)) +
   geom_boxplot() +
   labs(
     title = "Pitch Outcome Given Distribution of Pitch Velocity",
@@ -448,7 +463,7 @@ ggplot(noNA, aes(x = outcome, y = release_speed, fill = outcome)) +
 ```
 
 Table 1:
-```{r}
+```{r, results='hide', fig.show='hide'}
 # get first pitches (where count is 0-0)
 first_pitch_data <- baseballData[baseballData$balls == 0 & baseballData$strikes == 0 &
                                    !is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
@@ -473,5 +488,28 @@ first_pitch <- first_pitch[order(-first_pitch$n_pitches), ]
 first_pitch
 ```
 
+Table 2: 
+```{r, results='hide', fig.show='hide'}
+# counting horizontal break values by pitch name
+pitch_name = tapply(baseballData$pfx_x, baseballData$pitch_name, length)
 
+# calculating the mean of horizontal/vertical break and spin rate  by pitch name
+avg_horizontal_break <- tapply(baseballData$pfx_x, baseballData$pitch_name, mean, na.rm = TRUE)
+avg_vertical_break <- tapply(baseballData$pfx_z, baseballData$pitch_name, mean, na.rm = TRUE)
+avg_spin_rate <- tapply(baseballData$release_spin_rate, baseballData$pitch_name, mean, na.rm = TRUE)
+
+# create the data frame, rounding when needed
+pitch_movement <- data.frame(
+  pitch_name = names(pitch_name),
+  avg_spin_rate = round((as.numeric(avg_spin_rate)), 2),
+  avg_horizontal_break = round((as.numeric(abs(avg_horizontal_break))), 4),
+  avg_vertical_break = round((as.numeric(avg_vertical_break)), 4)
+  )
+
+# order by decreasing spin rate
+pitch_movement <- pitch_movement[order(-pitch_movement$avg_spin_rate), ]
+
+# display table
+pitch_movement
+```
 
