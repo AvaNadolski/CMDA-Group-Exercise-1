@@ -81,6 +81,7 @@ knitr::opts_chunk$set(echo = TRUE,
 <!-- 
 briefly state your names, your assigned group number, and the chosen domain area.
 ---> 
+This report was prepared by Ava Nadolski and Erik Marcinek (Group 3). Our chosen domain is sports, more specifically play-by-play baseball data from Baseball Savant. In Part A we contrusted an exploratory data analysis (EDA) of the data. In Part B we build, tune, and evaluate regression and classification models through kNN and Naive Bayes.
 
 # 2. Executive Summary & Research Questions
 <!-- 
@@ -90,19 +91,292 @@ summarize your chosen target variables, define your explicit research questions,
 
 
 ## 2.b: Classification Research Question
+Which classifier, kNN or Naive Bayes, can more accurately predict a pitch result (ball/strike/in play) from pre-pitch information such as pitch type, ball-strike count, velocity, spin rate, horizontal/vertical break, and pitcher/batter handedness?
+
+The target is the Statcast pitch result `type`, with $K = 3$ classes: Ball (B), Strike (S), and InPlay (X). Predicting pitch results matters because it lets pitchers, catchers, and defenses anticipate what a given pitch is likely to produce. Below is a table with all variables and a connection to the EDA done previously. All plot names refer to the EDA from Nadolski_Group_Exercise1.
+
+
+|Variable|Type|Justification|
+|--|--|-----|
+|Pitch Type| Categorical|Plot 1: Strike percentage differ by pitch type|
+|Balls| Numerical|Plot 3: Pitch type differs by ball-strike count.|
+|Strikes| Numerical|Plot 3: Pitch type differs by ball-strike count.|
+|Velocity| Numerical|Plot 4: Velocity differs by pitch outcome (Ball, Foul, other).|
+|Spin Rate| Numerical|Table 2: Spin differs by pitch type.|
+|Horizontal Break| Numerical|Table 2: Horizontal break differs by pitch type.|
+|Vertical Break| Numerical|Table 2: Vertical break differs by pitch type.|
+|Pitcher Handedness| Categorical| Domain knowledge, same batter-handedness advantage.|
+|Batter Handedness| Categorical| Domain knowledge, opposite pitcher-handedness advantage.|
+
+
+```{r, echo=FALSE}
+# Load data and libraries
+baseballData <- read.csv("/Users/avanadolski/Desktop/CMDA4654/Group HW 1 Part A/savant_data.csv")
+
+library(knitr)
+library(tidyverse)
+library(FNN)
+library(e1071) 
+```
+
+
+
+```{r, echo=FALSE}
+# Build classification sub dataset
+K <- 3
+classes <- c("Ball", "Strike", "InPlay")
+
+classification_clean <- baseballData %>%
+  transmute(Y = factor(type, levels = c("B", "S", "X"), labels = classes),
+            pitch_name = as.character(pitch_name),
+            balls, strikes, release_speed, release_spin_rate,
+            pfx_x = abs(pfx_x), pfx_z,
+            stand = as.character(stand), p_throws = as.character(p_throws))
+
+# Remove null values
+n_raw <- nrow(classification_clean)
+classification_clean <- classification_clean %>% filter(complete.cases(.), pitch_name != "")
+
+# 80/20 train/test split for classification
+set.seed(1234)
+train_idx <- sample(nrow(classification_clean), size = floor(0.8 * nrow(classification_clean)))
+train <- classification_clean[train_idx, ]
+test  <- classification_clean[-train_idx, ]
+
+# Combine pitches with <50 training pitches into 'Other' (levels chosen from TRAIN only)
+keep <- names(which(table(train$pitch_name) >= 50))
+collapse_pitch <- function(x) ifelse(x %in% keep, x, "Other")
+train$pitch_name <- collapse_pitch(train$pitch_name)
+test$pitch_name  <- collapse_pitch(test$pitch_name)
+
+# Factor pitch_name, stand, and p_throws (levels fixed by the training set)
+for (obs in c("pitch_name", "stand", "p_throws")) {
+  lv <- sort(unique(train[[obs]]))
+  train[[obs]] <- factor(train[[obs]], levels = lv)
+  test[[obs]]  <- factor(test[[obs]],  levels = lv)
+}
+
+# Class proportions and baselines
+pi_train <- prop.table(table(train$Y))
+null_acc <- mean(test$Y == names(which.max(pi_train)))
+null_ll  <- -mean(log(pi_train[as.character(test$Y)]))
+entropy_train <- -sum(pi_train * log(pi_train))
+
+baselines <- c(accuracy_NIR = max(pi_train), balanced_acc = 1 / K, MCC = 0, kappa = 0,
+               log_loss = entropy_train, brier = 1 - sum(pi_train^2))
+```
+
+Below are the testing/training proportions of each class. 
+
+```{r,echo=FALSE}
+split_tab <- data.frame(
+  Split = c("Train", "Test"),
+  n = c(nrow(train), nrow(test)),
+  rbind(prop.table(table(train$Y)),
+        prop.table(table(test$Y))))
+
+kable(split_tab, digits = 3, row.names = FALSE,
+      col.names = c("Split", "n", "Ball", "Strike", "InPlay"),
+      caption = "80/20 train/test class proportions $\\pi_k$.")
+```
+
 
 
 # 3. Methodology & Model Setup
 <!-- 
 detail the train/test split, data preprocessing, scaling protocols, handling of categorical levels, the probability outputs of each classifier (including any smoothing), and the threshold τ (binary) or argmax rule (multi-class).
 ---> 
-## 3.a: Data Preprocessign and Leakage Prevention
 
+
+## 3.a: Data Preprocessing and Leakage Prevention
+
+```{r, echo=FALSE}
+# Standardize numeric predictors using TRAINING mean/SD only
+num_vars <- c("balls", "strikes", "release_speed", "release_spin_rate", "pfx_x", "pfx_z")
+fac_vars <- c("pitch_name", "stand", "p_throws")
+
+train_X <- scale(train[, num_vars])
+test_X  <- scale(test[, num_vars],
+                 center = attr(train_X, "scaled:center"),
+                 scale  = attr(train_X, "scaled:scale"))
+
+# Categorical encodings (dummy coding for kNN)
+dummies <- function(df) model.matrix(~ pitch_name + stand + p_throws, data = df)[, -1]
+X_train <- cbind(train_X, dummies(train))
+X_test  <- cbind(test_X,  dummies(test))
+ytr <- as.integer(train$Y)
+```
+
+**Data split:** 
+We used an 80/20 train/test split with `set.seed(1234)` and the test set was touched only once, after all tuning was finished.
+
+**Rare pitch types:** 
+From the EDA, many pitch types appeared very few times. For example, forkball and pitch out have only one observation each. Categories that small make estimates unstable for both models, so pitch types with fewer than 50 training observations were collapsed into an "Other" category. The collapsing rule was performed after the split, so the test set did not influence it.
+
+**kNN encoding:** 
+Pitch name, batter side, and pitcher hand are dummy coded (1/2) and left unscaled. Balls, strikes, velocity, spin rate, and horizontal/vertical break are z-scored using the training mean and SD, and those same training values are applied to the test set. Inside cross-validation, the mean and SD come from the fitting folds only.
+
+**Naive Bayes encoding:** 
+Pitch name, batter side, pitcher hand, balls, and strikes are treated as categorical features with class-conditional frequency tables (Laplace smoothing, $\alpha = 1$). Velocity, spin rate, and horizontal/vertical break use Gaussian class-conditional densities, which is scale invariant. These features are left unstandardized.
+
+**Probability outputs and decision rule:** 
+Because the target has $K = 3$ classes, there is no single threshold $\tau$. Both models predict the class with the largest probability, $\hat{y} = \arg\max_k \hat{p}_k(x)$. kNN probabilities are smoothed vote fractions $\widehat{p}_k = (\text{votes}_k + 1)/(k + K)$. Naive Bayes probabilities are the posterior class probabilities $\hat{P}(Y = k \mid x)$.
 
 ## 3.b: Hyperparameter Optimization of kNN (Regression and Classification)
 
+**Classification**
+```{r, echo=FALSE}
+# Define grid
+kmax <- 301
+k.grid <- c(seq(1, 51, by = 2), seq(61, kmax, by = 10))
+
+# Cumulative class votes for every k from ONE neighbour search
+knn_votes <- function(fit.X, fit.y, new.X, kmax) {
+  nn <- FNN::get.knnx(fit.X, new.X, k = kmax, algorithm = "brute")$nn.index
+  L  <- matrix(fit.y[nn], nrow = nrow(new.X))
+  lapply(1:K, function(j) t(apply(L == j, 1, cumsum)))
+}
+# Laplace-smoothed vote fractions
+smooth_p <- function(votes, k) sapply(1:K, function(j) (votes[[j]][, k] + 1) / (k + K))
+
+multi_log_loss <- function(y, P, eps = 1e-15) {
+  P <- pmin(pmax(P, eps), 1 - eps)
+  -mean(log(P[cbind(seq_along(y), as.integer(y))]))
+}
+bal_acc <- function(y, pred) {
+  tab <- table(factor(pred, 1:K), factor(y, 1:K));  mean(diag(tab) / colSums(tab))
+}
+knn_metrics <- function(votes, y, k) {
+  P <- smooth_p(votes, k)
+  c(BalancedAcc = bal_acc(y, max.col(P, "random")), LogLoss = multi_log_loss(y, P))
+}
+
+# 5-fold CV: scale with the FITTING folds' mean/SD, apply to the held-out fold
+set.seed(2026)
+folds <- sample(rep(1:5, length.out = nrow(train)))
+cv_knn <- function(v) {
+  fit <- train[folds != v, ];  val <- train[folds == v, ]
+  fit.num <- scale(fit[, num_vars])
+  val.num <- scale(val[, num_vars], center = attr(fit.num, "scaled:center"),
+                                    scale  = attr(fit.num, "scaled:scale"))
+  votes <- knn_votes(cbind(fit.num, dummies(fit)), as.integer(fit$Y),
+                     cbind(val.num, dummies(val)), kmax)
+  t(sapply(k.grid, function(k) knn_metrics(votes, as.integer(val$Y), k)))
+}
+knn.cv <- data.frame(k = k.grid, Reduce(`+`, lapply(1:5, cv_knn)) / 5)
+
+# Training (resubstitution) curve on a 5,000-pitch subsample
+sub       <- sample(nrow(train), 5000)
+votes_tr  <- knn_votes(X_train, ytr, X_train[sub, ], kmax)
+knn.train <- data.frame(k = k.grid, t(sapply(k.grid, function(k) knn_metrics(votes_tr, ytr[sub], k))))
+
+# Choose k*: log-loss decides; the curve is flat at large k, so take the smallest k within 0.001 of the minimum
+best_ll <- min(knn.cv$LogLoss)
+k_ll    <- knn.cv$k[which.min(knn.cv$LogLoss)]
+k_star  <- min(knn.cv$k[knn.cv$LogLoss <= best_ll + 0.001])
+k_ba    <- knn.cv$k[which.max(knn.cv$BalancedAcc)]
+
+# Improvement over the no-skill model
+null_ll_train <- -sum(pi_train * log(pi_train))
+knn.cv$LL_improvement <- 1 - knn.cv$LogLoss / null_ll_train
+```
+
+```{r, echo=FALSE}
+tune_long <- tidyr::pivot_longer(
+  rbind(data.frame(set = "5-fold CV", knn.cv[, c("k", "BalancedAcc", "LogLoss")]),
+        data.frame(set = "Training",  knn.train)),
+  c(BalancedAcc, LogLoss), names_to = "metric", values_to = "value")
+
+ref <- data.frame(metric = c("BalancedAcc", "LogLoss"), value = c(1 / K, null_ll_train))
+
+ggplot(tune_long, aes(k, value, colour = set)) + geom_line() +
+  geom_hline(data = ref, aes(yintercept = value), linetype = "dotted") +
+  geom_vline(xintercept = k_star, linetype = "dashed") +
+  scale_x_log10() + facet_wrap(~ metric, scales = "free_y") +
+  labs(x = "Neighborhood size k (log scale)", y = NULL, colour = NULL)
+```
+
+```{r, echo=FALSE}
+top <- rbind(cbind(Best = "BA", knn.cv[order(-knn.cv$BalancedAcc), ][1:3, 1:3]),
+             cbind(Best = "LL", knn.cv[order(knn.cv$LogLoss), ][1:3, 1:3]),
+             cbind(Best = "k*", knn.cv[knn.cv$k == k_star, 1:3]))
+kable(top, digits = 4, row.names = FALSE,
+      caption = "Top candidate k by balanced accuracy (BA) and log-loss (LL), with the chosen $k^*$.")
+```
+
+We searched neighborhood sizes with 5-fold cross-validation on the training set only. The grid started at $k \in \{1, 3, 5,..., 51\}$. The best CV $k$ landed on the boundary of 51, so the grid was extended to 301 (steps of 10 beyond 51). The log-loss minimum then landed on the new boundary of 301, but the curve is essentially flat beyond $k \approx 100$, so extending the grid further would not change the conclusion. The final $k^* =$ `r k_star` was chosen by cross-validated log-loss, using the smallest $k$ within 0.001 of the minimum because the curve is flat. The minimum log-loss was at $k =$ `r k_ll`, while balanced accuracy peaked much earlier at $k =$ `r k_ba`, so the two metrics did not agree. Balanced accuracy is nearly flat across all $k$ (roughly 0.345 to 0.358, against a no-skill value of 0.333), so its differences are too small to be meaningful. Log-loss decided because it is a strictly proper scoring rule that uses the full probability vector, while balanced accuracy depends only on the argmax. Both metrics stay close to their no-skill baselines, which suggests the available pitch characteristics carry limited information about the pitch result. The test set was used exactly once, after $k^*$ was chosen, to evaluate the final kNN model.
+
 
 ## 3.c: Naive Bayes Classification Rigor
+**Assumptions:** 
+
+```{r, echo=FALSE}
+# Naive Bayes feature set: categorical features (balls/strikes as categories) + Gaussian numerics
+nb_vars <- c("pitch_name", "balls", "strikes", "stand", "p_throws",
+             "release_speed", "release_spin_rate", "pfx_x", "pfx_z")
+nb_train <- train %>% mutate(balls = factor(balls), strikes = factor(strikes))
+nb_test  <- test  %>% mutate(balls = factor(balls, levels = levels(nb_train$balls)),
+                             strikes = factor(strikes, levels = levels(nb_train$strikes)))
+
+# Zero-frequency check: empty (feature level x class) cells in the training data
+cat_vars <- c("pitch_name", "balls", "strikes", "stand", "p_throws")
+zero_check <- data.frame(
+  Feature = cat_vars,
+  Zero_cells = sapply(cat_vars, function(v) sum(table(nb_train[[v]], nb_train$Y) == 0)))
+
+# Conditional-independence check: correlation among the numeric predictors
+num_cor <- round(cor(train[, c("release_speed", "release_spin_rate", "pfx_x", "pfx_z")]), 2)
+
+# Fit Naive Bayes with Laplace smoothing
+nb_fit <- naiveBayes(Y ~ ., data = nb_train[, c("Y", nb_vars)], laplace = 1)
+P_nb   <- predict(nb_fit, nb_test[, nb_vars], type = "raw")   # soft posteriors, columns = Ball, Strike, InPlay
+```
+
+```{r, echo=FALSE}
+train %>%
+  select(Y, release_speed, release_spin_rate, pfx_x, pfx_z) %>%
+  pivot_longer(-Y) %>%
+  ggplot(aes(value, colour = Y)) + geom_density() +
+  facet_wrap(~ name, scales = "free") + labs(x = NULL, colour = "Pitch result")
+
+kable(num_cor, caption = "Correlation among numeric predictors.")
+```
+
+Naive Bayes assumes the features are conditionally independent given the pitch result. Numeric features (velocity, spin rate, horizontal and vertical break) follow Gaussian class-conditional densities. Categorical features (pitch type, balls, strikes, batter side, pitcher hand) use class-conditional frequency tables.
+
+In the density plots above, each show one numeric predictor, with one curve representing one pitch result. In every density plot, all lines almost completely overlap in every panel. If a ball, a strike, and ball put in play pitch all have nearly the same velocity, spin, and break distributions, those features can barely tell the classes apart. 
+
+Another thing to note is that the density curves are not Gaussian, or Normal. Vertical break (pfx_z) and release speed (release_speed) are bimodal and horizontal break (pfx_x) is pretty bumpy. The best distribution is release spin rate (release_spin_rate), which has a dominant peak, but is not completely smooth. 
+
+Looking at the correlation table, most pairs are close to zero. The exception is release_speed and pfx_z, which have a value of 0.72. This is likely because faster pitches tend to have more vertical movement. Since Naive Bayes treats the two features as independent evidence, it essentially counts the same information twice. That tends to make its probabilities more extreme than they should be, which the calibration plot should show.
+
+Given the information above, we suggest that there is not independence within the data. 
+
+**Zero-frequency problem:** 
+
+```{r, echo=FALSE}
+kable(zero_check, row.names = FALSE, caption = "Zero-frequency check, empty feature-level-by-class cells.")
+```
+
+Every categorical feature (pitch type, balls, strikes, batter side, pitcher hand) was checked for feature-level-by-class combinations with no training observations, and found none. Regardless, we used Laplace smoothing (`laplace = 1`) so that a feature level never seen with a class in training cannot force that class's posterior to exactly zero. We extracted both the hard predicted classes (argmax of the posterior) and the soft posteriors $\widehat{P}(Y = k \mid \mathbf{x})$.
+
+**Hard Predicted Classes and Soft Posteriors:** 
+```{r, echo = FALSE}
+# Hard classes and soft posteriors for Naive Bayes
+pred_nb <- max.col(P_nb, ties.method = "first")
+
+# First 6 test pitches
+post_tab <- data.frame(Actual = test$Y, round(P_nb, 3), Predicted = classes[pred_nb])[1:6, ]
+kable(post_tab, row.names = FALSE,
+      caption = "Naive Bayes soft posteriors $\\widehat{P}(Y = k \\mid \\mathbf{x})$ and hard predicted class for the first six test pitches.")
+```
+
+**Confusion Matrix:** 
+```{r, echo = FALSE}
+# Naive Bayes confusion matrix (test set)
+kable(table(Predicted = classes[pred_nb], Actual = classes[as.integer(test$Y)]),
+      caption = "Naive Bayes confusion matrix (test set).")
+```
 
 
 # 4. Analysis, Tuning & Results
@@ -111,6 +385,7 @@ detail the train/test split, data preprocessing, scaling protocols, handling of 
 * Provide the comparative evaluation table of classification metrics described in Section 4 (both models plus the no-skill baseline), with a sentence justifying your choice of metrics.
 * Include at least one visualization contrasting the behavior of Naive Bayes and kNN, e.g., ROC curves overlaid on the same axes (binary), a calibration plot, or a 2D decision boundary plot.
 ---> 
+
 ## 4.1: Regression (kNN Regression)
 
 **Root Mean Squared Error (RMSE):**
@@ -139,10 +414,13 @@ address the discussion prompts listed in Section 6.
 link to the original data source and provide a direct, one-click access link to your data file (e.g., hosted on Google Drive).
 --->
 Baseball Savant Website: [Original data source](https://baseballsavant.mlb.com/statcast_search)
+
 Data File: [Clean Data](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3PdsiJ9JdB-IF8XxnXb9x7-mVuE-XU/edit?usp=sharing)
 
 # 7. Appendix
 <!-- 
 all clean, commented R code necessary to fully reproduce your training splits, models, metric calculations, tables, and figures.
 --->
+
+
 
