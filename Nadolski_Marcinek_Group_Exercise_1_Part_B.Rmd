@@ -91,7 +91,7 @@ summarize your chosen target variables, define your explicit research questions,
 
 
 ## 2.b: Classification Research Question
-Which classifier, kNN or Naive Bayes, can more accurately predict a pitch result (ball/strike/in play) from pre-pitch information such as pitch type, ball-strike count, velocity, spin rate, horizontal/vertical break, and pitcher/batter handedness?
+Can we accurately predict a pitch result (ball/strike/in play) from pre-pitch information such as pitch type, ball-strike count, velocity, spin rate, horizontal/vertical break, and pitcher/batter handedness?
 
 The target is the Statcast pitch result `type`, with $K = 3$ classes: `Ball` (B), `Strike` (S), and `InPlay` (X). Predicting pitch results matters because it lets pitchers, catchers, and defenses anticipate what a given pitch is likely to produce. Below is a table with all variables and a connection to the EDA done previously. All plot names refer to the EDA from Nadolski_Group_Exercise1.
 
