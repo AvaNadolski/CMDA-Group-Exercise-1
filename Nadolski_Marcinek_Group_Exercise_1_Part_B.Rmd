@@ -108,11 +108,7 @@ The target is the Statcast pitch result `type`, with $K = 3$ classes: Ball (B), 
 |Batter Handedness| Categorical| Domain knowledge, opposite pitcher-handedness advantage.|
 
 
-
-
  \hfill\break
-
-
 
 
 ```{r, echo=FALSE}
@@ -197,6 +193,13 @@ kable(baseline_tab, row.names = FALSE,
 <!-- 
 detail the train/test split, data preprocessing, scaling protocols, handling of categorical levels, the probability outputs of each classifier (including any smoothing), and the threshold τ (binary) or argmax rule (multi-class).
 ---> 
+
+## 3.a: Data Preprocessing and Leakage Prevention
+**Classification**
+**Data split:** 
+We used an 80/20 train/test split with `set.seed(1234)` and the test set was touched only once, after all tuning was finished.
+
+
 ```{r, echo=FALSE}
 # Combine pitches with <50 training pitches into 'Other' (levels chosen from TRAIN only)
 keep <- names(which(table(training_df$pitch_name) >= 50))
@@ -204,6 +207,9 @@ collapse_pitch <- function(x) ifelse(x %in% keep, x, "Other")
 training_df$pitch_name <- collapse_pitch(training_df$pitch_name)
 testing_df$pitch_name  <- collapse_pitch(testing_df$pitch_name)
 ```
+
+**Rare pitch types:** 
+From the EDA, many pitch types appeared very few times. For example, forkball and pitch out have only one observation each. Categories that small make estimates unstable for both models, so pitch types with fewer than 50 training observations were collapsed into an "Other" category. The collapsing rule was performed after the split, so the test set did not influence it.
 
 ```{r, echo=FALSE}
 # turn categorical vars into factors
@@ -216,8 +222,6 @@ for (v in cat_vars) {
 ```
 
 
-
-## 3.a: Data Preprocessing and Leakage Prevention
 ```{r, echo=FALSE, results='hide', fig.show='hide'}
 cont_vars <- c("release_speed", "release_spin_rate", "pfx_x", "pfx_z") 
 
@@ -245,7 +249,7 @@ ggplot(long, aes(sample = value)) +
   labs(title = "Normal Q-Q plots")
 
 ```
-After looking at histograms, boxplots, and qqplots, there are a few outliers in a feature release_spin_rate. Therefore, we will standardize by z-score as it is less sensitive to extreme values. 
+
 
 ```{r, echo=FALSE}
 # standardize by z-score
@@ -265,8 +269,10 @@ kable(round(scale_check, 3),
       caption = "Means in the training and test sets. Scaling parameters come from the training set only.")
 ```
 
-The training set feature means are all close to zero, which is what we want. Further, our testing means are near zero, but not exactly zero. We want this too, as the test set was not used to define "zero." 
+**kNN Standardization** 
+After looking at histograms, boxplots, and qqplots, there are a few outliers in a feature release_spin_rate. Therefore, we will standardize by z-score as it is less sensitive to extreme values.
 
+In the table above, the training set feature means are all close to zero, which is what we want. Further, our testing means are near zero, but not exactly zero. We want this too, as the test set was not used to define "zero." 
 
 ```{r, echo=FALSE, results='hide'}
 # check is.ordered() to decide nominal/ordinal 
@@ -275,7 +281,13 @@ is.ordered(classification_data$p_throws)
 is.ordered(classification_data$pitch_name)
 ```
 
+**Categorical Encoding: kNN encoding:**
 Categorical variables pitch_name, stand, and p_throws have no order. There is no ranking among the pitches slider, sinker, changeup, etc. Additionally, there is no order in whether a pitcher is a righty or a lefty. Therefore, they are nominal variables and get dummy encoded.  
+
+Pitch name, batter side, and pitcher hand are dummy coded (1/2) and left unscaled. Balls, strikes, velocity, spin rate, and horizontal/vertical break are z-scored using the training mean and SD, and those same training values are applied to the test set. Inside cross-validation, the mean and SD come from the fitting folds only.
+
+**Categorical Encoding: Naive Bayes encoding:** 
+Pitch name, batter side, pitcher hand, balls, and strikes are treated as categorical features with class-conditional frequency tables (Laplace smoothing, $\alpha = 1$). Velocity, spin rate, and horizontal/vertical break use Gaussian class-conditional densities, which is scale invariant. These features are left unstandardized.
 
 ```{r, echo=FALSE, results='hide'}
 # encode nominal variables with full one-hot 
@@ -292,18 +304,6 @@ ytr <- as.integer(training_df$Y)
 stopifnot(identical(colnames(X_train), colnames(X_test)))
 colnames(X_train)
 ```
-
-**Data split:** 
-We used an 80/20 train/test split with `set.seed(1234)` and the test set was touched only once, after all tuning was finished.
-
-**Rare pitch types:** 
-From the EDA, many pitch types appeared very few times. For example, forkball and pitch out have only one observation each. Categories that small make estimates unstable for both models, so pitch types with fewer than 50 training observations were collapsed into an "Other" category. The collapsing rule was performed after the split, so the test set did not influence it.
-
-**kNN encoding:** 
-Pitch name, batter side, and pitcher hand are dummy coded (1/2) and left unscaled. Balls, strikes, velocity, spin rate, and horizontal/vertical break are z-scored using the training mean and SD, and those same training values are applied to the test set. Inside cross-validation, the mean and SD come from the fitting folds only.
-
-**Naive Bayes encoding:** 
-Pitch name, batter side, pitcher hand, balls, and strikes are treated as categorical features with class-conditional frequency tables (Laplace smoothing, $\alpha = 1$). Velocity, spin rate, and horizontal/vertical break use Gaussian class-conditional densities, which is scale invariant. These features are left unstandardized.
 
 **Probability outputs and decision rule:** 
 Because the target has $K = 3$ classes, there is no single threshold $\tau$. Both models predict the class with the largest probability, $\hat{y} = \arg\max_k \hat{p}_k(x)$. kNN probabilities are smoothed vote fractions $\hat{p}_k = (\text{votes}_k + 1)/(k + K)$. Naive Bayes probabilities are the posterior class probabilities $\hat{P}(Y = k \mid x)$.
@@ -414,7 +414,6 @@ We searched neighborhood sizes with 5-fold cross-validation on the training set 
 
 ## 3.c: Naive Bayes Classification Rigor
 **Assumptions:** 
-
 ```{r, echo=FALSE}
 # Naive Bayes feature set: categorical features (balls/strikes as categories) + Gaussian numerics
 nb_vars <- c("pitch_name", "balls", "strikes", "stand", "p_throws",
@@ -439,6 +438,8 @@ colnames(P_nb) <- classes
 ```
 
 
+ \hfill\break
+[THIS TEXT NEEDS TO BE BELOW THE PLOTS]
 Naive Bayes assumes the features are conditionally independent given the pitch result. Numeric features (velocity, spin rate, horizontal and vertical break) follow Gaussian class-conditional densities. Categorical features (pitch type, balls, strikes, batter side, pitcher hand) use class-conditional frequency tables.
 
 In the density plots above, each show one numeric predictor, with one curve representing one pitch result. In every density plot, all lines almost completely overlap in every panel. If a ball, a strike, and ball put in play pitch all have nearly the same velocity, spin, and break distributions, those features can barely tell the classes apart. 
@@ -446,6 +447,9 @@ In the density plots above, each show one numeric predictor, with one curve repr
 Another thing to note is that the density curves are not Gaussian, or Normal. Vertical break (pfx_z) and release speed (release_speed) are bimodal and horizontal break (pfx_x) is pretty bumpy. The best distribution is release spin rate (release_spin_rate), which has a dominant peak, but is not completely smooth.
 
 
+ \hfill\break
+ 
+ 
 ```{r, echo=FALSE}
 kable(zero_check, row.names = FALSE,
       caption = "Zero-frequency check: empty feature-level-by-class cells.")
@@ -487,7 +491,7 @@ kable(post_tab, row.names = FALSE,
 # Naive Bayes confusion matrix (test set); rows = predicted, columns = actual
 cm_nb <- table(predicted = factor(classes[pred_nb], levels = classes),
                actual = factor(classes[as.integer(testing_df$Y)], levels = classes))
-kable(cm_nb, caption ="Naive Bayes confusion matrix (test set)")
+kable(cm_nb, caption ="Naive Bayes confusion matrix (test set). Rows = predicted, columns = actual.")
 ```
 
 
@@ -497,9 +501,9 @@ kable(cm_nb, caption ="Naive Bayes confusion matrix (test set)")
 * Provide the comparative evaluation table of classification metrics described in Section 4 (both models plus the no-skill baseline), with a sentence justifying your choice of metrics.
 * NEED TO DO THIS: Include at least one visualization contrasting the behavior of Naive Bayes and kNN, e.g., ROC curves overlaid on the same axes (binary), a calibration plot, or a 2D decision boundary plot.
 ---> 
+**[NEED TO DO THIS: Include tuning plots and tables for the optimal k selection (regression and classification).]**
 
 ## 4.1: Regression (kNN Regression)
-
 **Root Mean Squared Error (RMSE):**
 **Mean Absolute Error (MAE):**
 **Coefficient of Determination** ($R^2$)**:**
@@ -628,6 +632,11 @@ kable(brier_tab, digits = 4, row.names = FALSE,
 
 The plot above represents the multi-class Brier score. We want the Brier score to be as low as possible, so ideally we want kNN and Naive Bayes to have a negative difference from the baseline. Looking at the plot above, kNN barely changes from the null model and Naive Bayes make a positive improvement. Therefore, the no-skill model is the best. 
 
+[NEED TO COMBINE ALL ABOVE TABLES]
+
+
+
+** [NEED TO DO THIS: Include at least one visualization contrasting the behavior of Naive Bayes and kNN, e.g., ROC curves overlaid on the same axes (binary), a calibration plot, or a 2D decision boundary plot]**
 
 # 5. Discussion & Real-World Implications
 <!-- 
@@ -654,6 +663,7 @@ Data File: [Clean Data](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3Pd
 <!-- 
 all clean, commented R code necessary to fully reproduce your training splits, models, metric calculations, tables, and figures.
 --->
+
 
 
 
