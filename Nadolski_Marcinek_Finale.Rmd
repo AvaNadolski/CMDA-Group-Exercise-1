@@ -1,0 +1,62 @@
+---
+title: "Group 3 Exercise 1 Finale"
+author: "Ava Nadolski and Erik Marcinek"
+date: "2026-10-08"
+fontsize: 9pt
+classoption: "aspectratio=169"
+output: 
+  beamer_presentation: 
+    fonttheme: professionalfonts
+    highlight: kate
+    theme: Rochester
+header-includes:
+- \definecolor{VTmaroon}{HTML}{861F41}
+- \usecolortheme[named=VTmaroon]{structure}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE)
+
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  paste0("\n \\", "footnotesize","\n\n", x, "\n\n \\normalsize")
+})
+
+```
+
+## Introduction & Research Questions
+
+Context & Data: Briefly introduce your dataset (source, scope, key variables, and sample size).
+Research Motivation: Clearly articulate 1–2 primary research questions you set out to answer and why they matter.
+
+**Data:**
+
+
+**Research Questions:**
+
+- Regression:
+- Classification:
+
+## Exploratory Data Analysis (EDA)
+
+Visual Storytelling: Present key summary visualizations or tables from your EDA that directly motivate or support your research questions.
+Insights: Highlight any interesting patterns, anomalies, or distributions discovered prior to modeling.
+
+## Data Science Methods & Techniques
+
+Methodology: Explain the quantitative/analytical techniques, algorithms, or statistical models used to address your research questions.
+Justification: Briefly justify why these methods were appropriate for your data structure and research goals.
+
+## Results & Key Findings
+Model/Analytical Output: Summarize primary outputs (e.g., coefficient tables, performance metrics, cluster plots, or prediction accuracy) in an intuitive, accessible layout.
+Interpretation: Clearly state the answer to your research questions based on the evidence.
+
+## Impact & Discussion
+So What? Discuss why these results are important, actionable, or impactful in a broader real-world or domain context.
+
+
+
+
+
