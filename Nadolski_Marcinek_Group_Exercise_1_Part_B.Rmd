@@ -95,7 +95,6 @@ Which classifier, kNN or Naive Bayes, can more accurately predict a pitch result
 
 The target is the Statcast pitch result `type`, with $K = 3$ classes: Ball (B), Strike (S), and InPlay (X). Predicting pitch results matters because it lets pitchers, catchers, and defenses anticipate what a given pitch is likely to produce. Below is a table with all variables and a connection to the EDA done previously. All plot names refer to the EDA from Nadolski_Group_Exercise1.
 
-
 |Variable|Type|Justification|
 |--|--|-----|
 |Pitch Type| Categorical|Plot 1: Strike percentage differ by pitch type|
@@ -109,6 +108,13 @@ The target is the Statcast pitch result `type`, with $K = 3$ classes: Ball (B), 
 |Batter Handedness| Categorical| Domain knowledge, opposite pitcher-handedness advantage.|
 
 
+
+
+ \hfill\break
+
+
+
+
 ```{r, echo=FALSE}
 # Load data and libraries
 baseballData <- read.csv("/Users/avanadolski/Desktop/CMDA4654/Group HW 1 Part A/savant_data.csv")
@@ -120,91 +126,171 @@ library(e1071)
 ```
 
 
-
 ```{r, echo=FALSE}
-# Build classification sub dataset
-K <- 3
+# Get subdata
 classes <- c("Ball", "Strike", "InPlay")
-
-classification_clean <- baseballData %>%
+classification_data <- baseballData %>%
   transmute(Y = factor(type, levels = c("B", "S", "X"), labels = classes),
             pitch_name = as.character(pitch_name),
             balls, strikes, release_speed, release_spin_rate,
             pfx_x = abs(pfx_x), pfx_z,
             stand = as.character(stand), p_throws = as.character(p_throws))
+```
 
-# Remove null values
-n_raw <- nrow(classification_clean)
-classification_clean <- classification_clean %>% filter(complete.cases(.), pitch_name != "")
 
-# 80/20 train/test split for classification
+```{r, echo=FALSE}
+# Handle missingness delibrately 
+# Keeps only the rows where 'Y' is not NA
+n_raw <- nrow(classification_data)
+classification_data <- classification_data[complete.cases(classification_data) &
+                                           classification_data$pitch_name != "", ]
+n_removed <- n_raw - nrow(classification_data)
+```
+
+
+```{r, echo=FALSE}
 set.seed(1234)
-train_idx <- sample(nrow(classification_clean), size = floor(0.8 * nrow(classification_clean)))
-train <- classification_clean[train_idx, ]
-test  <- classification_clean[-train_idx, ]
-
-# Combine pitches with <50 training pitches into 'Other' (levels chosen from TRAIN only)
-keep <- names(which(table(train$pitch_name) >= 50))
-collapse_pitch <- function(x) ifelse(x %in% keep, x, "Other")
-train$pitch_name <- collapse_pitch(train$pitch_name)
-test$pitch_name  <- collapse_pitch(test$pitch_name)
-
-# Factor pitch_name, stand, and p_throws (levels fixed by the training set)
-for (obs in c("pitch_name", "stand", "p_throws")) {
-  lv <- sort(unique(train[[obs]]))
-  train[[obs]] <- factor(train[[obs]], levels = lv)
-  test[[obs]]  <- factor(test[[obs]],  levels = lv)
-}
-
-# Class proportions and baselines
-pi_train <- prop.table(table(train$Y))
-null_acc <- mean(test$Y == names(which.max(pi_train)))
-null_ll  <- -mean(log(pi_train[as.character(test$Y)]))
-entropy_train <- -sum(pi_train * log(pi_train))
-
-baselines <- c(accuracy_NIR = max(pi_train), balanced_acc = 1 / K, MCC = 0, kappa = 0,
-               log_loss = entropy_train, brier = 1 - sum(pi_train^2))
+# Split data into 80%/20% training/testing split
+index <- sample(1:nrow(classification_data), round(nrow(classification_data) * 0.8))
+training_df <- classification_data[index, ]
+testing_df <- classification_data[-index, ]
 ```
 
-Below are the testing/training proportions of each class. 
 
-```{r,echo=FALSE}
-split_tab <- data.frame(
-  Split = c("Train", "Test"),
-  n = c(nrow(train), nrow(test)),
-  rbind(prop.table(table(train$Y)),
-        prop.table(table(test$Y))))
+```{r, echo=FALSE}
+# training proportions
+K <- length(classes)
 
-kable(split_tab, digits = 3, row.names = FALSE,
-      col.names = c("Split", "n", "Ball", "Strike", "InPlay"),
-      caption = "80/20 train/test class proportions $\\pi_k$.")
+# Training class proportions
+pi_train <- prop.table(table(training_df$Y))
+kable(data.frame(Class = classes, Proportion = round(as.numeric(pi_train), 3)),
+      caption = "Training class proportions $\\pi_k$.")
 ```
 
+
+```{r, echo=FALSE}
+# No-skill model baselines
+majority <- names(which.max(pi_train))
+null_acc <- mean(testing_df$Y == majority)                              
+null_ll <- -mean(log(pi_train[as.character(testing_df$Y)]))
+null_ll_train <- -sum(pi_train * log(pi_train))
+
+baselines <- c(accuracy_NIR = max(pi_train),
+               balanced_acc = 1 / K,
+               MCC = 0, kappa = 0,
+               log_loss = null_ll_train,
+               brier = 1 - sum(pi_train^2))
+
+baseline_tab <- data.frame(
+  Metric = c("Accuracy", "Balanced accuracy", "MCC", "Cohen's kappa",
+             "Log-loss", "Brier score"),
+  `Training proportions` = round(baselines, 3),
+  `Test set` = c(round(null_acc, 3), "—", "—", "—", round(null_ll, 3), "—"),
+  check.names = FALSE)
+
+kable(baseline_tab, row.names = FALSE,
+      caption = "No-skill baselines")
+```
 
 
 # 3. Methodology & Model Setup
 <!-- 
 detail the train/test split, data preprocessing, scaling protocols, handling of categorical levels, the probability outputs of each classifier (including any smoothing), and the threshold τ (binary) or argmax rule (multi-class).
 ---> 
+```{r, echo=FALSE}
+# Combine pitches with <50 training pitches into 'Other' (levels chosen from TRAIN only)
+keep <- names(which(table(training_df$pitch_name) >= 50))
+collapse_pitch <- function(x) ifelse(x %in% keep, x, "Other")
+training_df$pitch_name <- collapse_pitch(training_df$pitch_name)
+testing_df$pitch_name  <- collapse_pitch(testing_df$pitch_name)
+```
+
+```{r, echo=FALSE}
+# turn categorical vars into factors
+cat_vars <- c("pitch_name", "stand", "p_throws")
+for (v in cat_vars) {
+  lv <- sort(unique(training_df[[v]]))
+  training_df[[v]] <- factor(training_df[[v]], levels = lv)
+  testing_df[[v]]  <- factor(testing_df[[v]],  levels = lv)
+}
+```
+
 
 
 ## 3.a: Data Preprocessing and Leakage Prevention
+```{r, echo=FALSE, results='hide', fig.show='hide'}
+cont_vars <- c("release_speed", "release_spin_rate", "pfx_x", "pfx_z") 
+
+long <- training_df %>%
+  select(Y, all_of(cont_vars)) %>%
+  pivot_longer(-Y, names_to = "feature", values_to = "value")
+
+# Histograms
+ggplot(long, aes(value)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50, fill = "grey80", colour = "white") +
+  geom_density(colour = "blue") +
+  facet_wrap(~ feature, scales = "free") +
+  labs(title = "Distribution of each continuous feature (training set)")
+
+# Boxplots 
+ggplot(long, aes(x = feature, y = value)) +
+  geom_boxplot(outlier.alpha = 0.3) +
+  facet_wrap(~ feature, scales = "free") +
+  labs(title = "Outlier check", x = NULL)
+
+# QQ plots
+ggplot(long, aes(sample = value)) +
+  stat_qq(alpha = 0.3) + stat_qq_line(colour = "red") +
+  facet_wrap(~ feature, scales = "free") +
+  labs(title = "Normal Q-Q plots")
+
+```
+After looking at histograms, boxplots, and qqplots, there are a few outliers in a feature release_spin_rate. Therefore, we will standardize by z-score as it is less sensitive to extreme values. 
 
 ```{r, echo=FALSE}
-# Standardize numeric predictors using TRAINING mean/SD only
-num_vars <- c("balls", "strikes", "release_speed", "release_spin_rate", "pfx_x", "pfx_z")
-fac_vars <- c("pitch_name", "stand", "p_throws")
+# standardize by z-score
 
-train_X <- scale(train[, num_vars])
-test_X  <- scale(test[, num_vars],
-                 center = attr(train_X, "scaled:center"),
-                 scale  = attr(train_X, "scaled:scale"))
+numerical_vars <- c("balls", "strikes", "release_speed", "release_spin_rate", "pfx_x", "pfx_z")
+train_scaled <- scale(training_df[, numerical_vars])
+center_vals <- attr(train_scaled, "scaled:center")
+scale_vals  <- attr(train_scaled, "scaled:scale")
+test_scaled <- scale(testing_df[, numerical_vars], center = center_vals, scale = scale_vals)
 
-# Categorical encodings (dummy coding for kNN)
-dummies <- function(df) model.matrix(~ pitch_name + stand + p_throws, data = df)[, -1]
-X_train <- cbind(train_X, dummies(train))
-X_test  <- cbind(test_X,  dummies(test))
-ytr <- as.integer(train$Y)
+# Summary table
+scale_check <- rbind(
+  "Train mean" = colMeans(train_scaled),
+  "Test mean"  = colMeans(test_scaled))
+
+kable(round(scale_check, 3),
+      caption = "Means in the training and test sets. Scaling parameters come from the training set only.")
+```
+
+The training set feature means are all close to zero, which is what we want. Further, our testing means are near zero, but not exactly zero. We want this too, as the test set was not used to define "zero." 
+
+
+```{r, echo=FALSE, results='hide'}
+# check is.ordered() to decide nominal/ordinal 
+is.ordered(classification_data$stand)
+is.ordered(classification_data$p_throws)
+is.ordered(classification_data$pitch_name)
+```
+
+Categorical variables pitch_name, stand, and p_throws have no order. There is no ranking among the pitches slider, sinker, changeup, etc. Additionally, there is no order in whether a pitcher is a righty or a lefty. Therefore, they are nominal variables and get dummy encoded.  
+
+```{r, echo=FALSE, results='hide'}
+# encode nominal variables with full one-hot 
+one_hot <- function(df) {
+  ctr <- lapply(Filter(is.factor, df), function(f) contrasts(f, contrasts = FALSE))
+  model.matrix(~ . - 1, data = df, contrasts.arg = ctr)
+}
+
+X_train <- cbind(train_scaled, one_hot(training_df[cat_vars]))
+X_test <- cbind(test_scaled,  one_hot(testing_df[cat_vars]))
+ytr <- as.integer(training_df$Y)
+
+# test if variable encoding worked
+stopifnot(identical(colnames(X_train), colnames(X_test)))
+colnames(X_train)
 ```
 
 **Data split:** 
@@ -226,17 +312,16 @@ Because the target has $K = 3$ classes, there is no single threshold $\tau$. Bot
 
 **Classification**
 ```{r, echo=FALSE}
-# Define grid
 kmax <- 301
 k.grid <- c(seq(1, 51, by = 2), seq(61, kmax, by = 10))
 
-# Cumulative class votes for every k from ONE neighbour search
+# Class votes
 knn_votes <- function(fit.X, fit.y, new.X, kmax) {
   nn <- FNN::get.knnx(fit.X, new.X, k = kmax, algorithm = "brute")$nn.index
   L  <- matrix(fit.y[nn], nrow = nrow(new.X))
   lapply(1:K, function(j) t(apply(L == j, 1, cumsum)))
 }
-# Laplace-smoothed vote fractions
+# Laplace-smoothed vote (votes + 1) / (k + K)
 smooth_p <- function(votes, k) sapply(1:K, function(j) (votes[[j]][, k] + 1) / (k + K))
 
 multi_log_loss <- function(y, P, eps = 1e-15) {
@@ -244,49 +329,55 @@ multi_log_loss <- function(y, P, eps = 1e-15) {
   -mean(log(P[cbind(seq_along(y), as.integer(y))]))
 }
 bal_acc <- function(y, pred) {
-  tab <- table(factor(pred, 1:K), factor(y, 1:K));  mean(diag(tab) / colSums(tab))
+  tab <- table(factor(pred, 1:K), factor(y, 1:K))
+  mean(diag(tab) / colSums(tab))
 }
 knn_metrics <- function(votes, y, k) {
   P <- smooth_p(votes, k)
   c(BalancedAcc = bal_acc(y, max.col(P, "random")), LogLoss = multi_log_loss(y, P))
 }
 
-# 5-fold CV: scale with the FITTING folds' mean/SD, apply to the held-out fold
+# 5-fold CV 
 set.seed(1234)
-folds <- sample(rep(1:5, length.out = nrow(train)))
+folds <- sample(rep(1:5, length.out = nrow(training_df)))
+
 cv_knn <- function(v) {
-  fit <- train[folds != v, ];  val <- train[folds == v, ]
-  fit.num <- scale(fit[, num_vars])
-  val.num <- scale(val[, num_vars], center = attr(fit.num, "scaled:center"),
-                                    scale  = attr(fit.num, "scaled:scale"))
-  votes <- knn_votes(cbind(fit.num, dummies(fit)), as.integer(fit$Y),
-                     cbind(val.num, dummies(val)), kmax)
+  fit <- training_df[folds != v, ];  val <- training_df[folds == v, ]
+  fit.num <- scale(fit[, numerical_vars])
+  val.num <- scale(val[, numerical_vars],
+                   center = attr(fit.num, "scaled:center"),
+                   scale  = attr(fit.num, "scaled:scale"))
+  votes <- knn_votes(cbind(fit.num, one_hot(fit[cat_vars])), as.integer(fit$Y),
+                     cbind(val.num, one_hot(val[cat_vars])), kmax)
   t(sapply(k.grid, function(k) knn_metrics(votes, as.integer(val$Y), k)))
 }
 knn.cv <- data.frame(k = k.grid, Reduce(`+`, lapply(1:5, cv_knn)) / 5)
 
-# Training (resubstitution) curve on a 5,000-pitch subsample
-sub       <- sample(nrow(train), 5000)
+# Training curve on a 5,000-pitch subsample 
+sub       <- sample(nrow(training_df), 5000)
 votes_tr  <- knn_votes(X_train, ytr, X_train[sub, ], kmax)
-knn.train <- data.frame(k = k.grid, t(sapply(k.grid, function(k) knn_metrics(votes_tr, ytr[sub], k))))
+knn.train <- data.frame(k = k.grid,
+                        t(sapply(k.grid, function(k) knn_metrics(votes_tr, ytr[sub], k))))
 
-# Choose k*: log-loss decides; the curve is flat at large k, so take the smallest k within 0.001 of the minimum
+# Choose k*
 best_ll <- min(knn.cv$LogLoss)
-k_ll    <- knn.cv$k[which.min(knn.cv$LogLoss)]
-k_star  <- min(knn.cv$k[knn.cv$LogLoss <= best_ll + 0.001])
-k_ba    <- knn.cv$k[which.max(knn.cv$BalancedAcc)]
+k_ll <- knn.cv$k[which.min(knn.cv$LogLoss)]
+k_star <- min(knn.cv$k[knn.cv$LogLoss <= best_ll + 0.001])
+k_ba <- knn.cv$k[which.max(knn.cv$BalancedAcc)]
+kable(data.frame(Criterion = c("Minimum CV log-loss", "Chosen k*",
+                               "Maximum CV balanced accuracy"),
+                 k = c(k_ll, k_star, k_ba)),
+      caption = "Neighborhood sizes by each criterion")
 
-# Improvement over the no-skill model
-null_ll_train <- -sum(pi_train * log(pi_train))
 knn.cv$LL_improvement <- 1 - knn.cv$LogLoss / null_ll_train
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, fig.width=7, fig.height=4, out.width="80%", fig.align="center"}
+# Optimization plots
 tune_long <- tidyr::pivot_longer(
   rbind(data.frame(set = "5-fold CV", knn.cv[, c("k", "BalancedAcc", "LogLoss")]),
         data.frame(set = "Training",  knn.train)),
   c(BalancedAcc, LogLoss), names_to = "metric", values_to = "value")
-
 ref <- data.frame(metric = c("BalancedAcc", "LogLoss"), value = c(1 / K, null_ll_train))
 
 ggplot(tune_long, aes(k, value, colour = set)) + geom_line() +
@@ -294,17 +385,31 @@ ggplot(tune_long, aes(k, value, colour = set)) + geom_line() +
   geom_vline(xintercept = k_star, linetype = "dashed") +
   scale_x_log10() + facet_wrap(~ metric, scales = "free_y") +
   labs(x = "Neighborhood size k (log scale)", y = NULL, colour = NULL)
-```
 
-```{r, echo=FALSE}
 top <- rbind(cbind(Best = "BA", knn.cv[order(-knn.cv$BalancedAcc), ][1:3, 1:3]),
              cbind(Best = "LL", knn.cv[order(knn.cv$LogLoss), ][1:3, 1:3]),
              cbind(Best = "k*", knn.cv[knn.cv$k == k_star, 1:3]))
-kable(top, digits = 4, row.names = FALSE,
-      caption = "Top candidate k by balanced accuracy (BA) and log-loss (LL), with the chosen $k^*$.")
+kable(top, digits = 4, row.names = FALSE)
 ```
 
-We searched neighborhood sizes with 5-fold cross-validation on the training set only. The grid started at $k \in \{1, 3, 5,..., 51\}$. The best CV $k$ landed on the boundary of 51, so the grid was extended to 301 (steps of 10 beyond 51). The log-loss minimum then landed on the new boundary of 301, but the curve is essentially flat beyond $k \approx 100$, so extending the grid further would not change the conclusion. The final $k^* =$ `r k_star` was chosen by cross-validated log-loss, using the smallest $k$ within 0.001 of the minimum because the curve is flat. The minimum log-loss was at $k =$ `r k_ll`, while balanced accuracy peaked much earlier at $k =$ `r k_ba`, so the two metrics did not agree. Balanced accuracy is nearly flat across all $k$ (roughly 0.3551 to 0.3599, against a no-skill value of `r round(1 / K, 3)`), so its differences are too small to be meaningful. Log-loss decided because it is a strictly proper scoring rule that uses the full probability vector, while balanced accuracy depends only on the argmax. Both metrics stay close to their no-skill baselines, which suggests the available pitch characteristics carry limited information about the pitch result. The test set was used exactly once, after $k^*$ was chosen, to evaluate the final kNN model.
+```{r, echo=FALSE}
+yte <- as.integer(testing_df$Y)
+
+votes_te <- knn_votes(X_train, ytr, X_test, k_star)
+P_knn    <- smooth_p(votes_te, k_star)
+colnames(P_knn) <- classes
+
+set.seed(99)
+pred_knn <- max.col(P_knn, ties.method = "random")
+
+kable(data.frame(Metric = c("Accuracy", "Balanced accuracy", "Log-loss"),
+                 Value  = round(c(mean(pred_knn == yte),
+                                   bal_acc(yte, pred_knn),
+                                   multi_log_loss(yte, P_knn)), 4)),
+      caption = paste0("kNN test-set performance at k* = ", k_star, "."))
+```
+
+We searched neighborhood sizes with 5-fold cross-validation on the training set only. The grid started at $k \in \{1, 3, 5,..., 51\}$. The best CV $k$ landed on the boundary of 51, so the grid was extended to 301 (steps of 10 beyond 51). The log-loss minimum then landed on the new boundary of 301, but the curve is essentially flat beyond $k \approx 100$, so extending the grid further would not change the conclusion. The final $k^* =$ `r k_star` was chosen by cross-validated log-loss, using the smallest $k$ within 0.001 of the minimum because the curve is flat. The minimum log-loss was at $k =$ `r k_ll`, while balanced accuracy peaked much earlier at $k =$ `r k_ba`, so the two metrics did not agree. Balanced accuracy is nearly flat across all $k$ (roughly 0.3576 to 0.3573, against a no-skill value of `r round(1 / K, 3)`), so its differences are too small to be meaningful. Log-loss decided because it is a strictly proper scoring rule that uses the full probability vector, while balanced accuracy depends only on the argmax. Both metrics stay close to their no-skill baselines, which suggests the available pitch characteristics carry limited information about the pitch result. The test set was used exactly once, after $k^*$ was chosen, to evaluate the final kNN model.
 
 
 ## 3.c: Naive Bayes Classification Rigor
@@ -314,26 +419,38 @@ We searched neighborhood sizes with 5-fold cross-validation on the training set 
 # Naive Bayes feature set: categorical features (balls/strikes as categories) + Gaussian numerics
 nb_vars <- c("pitch_name", "balls", "strikes", "stand", "p_throws",
              "release_speed", "release_spin_rate", "pfx_x", "pfx_z")
-nb_train <- train %>% mutate(balls = factor(balls), strikes = factor(strikes))
-nb_test  <- test  %>% mutate(balls = factor(balls, levels = levels(nb_train$balls)),
-                             strikes = factor(strikes, levels = levels(nb_train$strikes)))
+nb_train <- training_df %>% mutate(balls = factor(balls), strikes = factor(strikes))
+nb_test  <- testing_df  %>% mutate(balls = factor(balls, levels = levels(nb_train$balls)),
+                                   strikes = factor(strikes, levels = levels(nb_train$strikes)))
 
 # Zero-frequency check: empty (feature level x class) cells in the training data
-cat_vars <- c("pitch_name", "balls", "strikes", "stand", "p_throws")
+nb_cat_vars <- c("pitch_name", "balls", "strikes", "stand", "p_throws")
 zero_check <- data.frame(
-  Feature = cat_vars,
-  Zero_cells = sapply(cat_vars, function(v) sum(table(nb_train[[v]], nb_train$Y) == 0)))
+  Feature = nb_cat_vars,
+  Zero_cells = sapply(nb_cat_vars, function(v) sum(table(nb_train[[v]], nb_train$Y) == 0)))
 
 # Conditional-independence check: correlation among the numeric predictors
-num_cor <- round(cor(train[, c("release_speed", "release_spin_rate", "pfx_x", "pfx_z")]), 2)
+num_cor <- round(cor(training_df[, c("release_speed", "release_spin_rate", "pfx_x", "pfx_z")]), 2)
 
 # Fit Naive Bayes with Laplace smoothing
 nb_fit <- naiveBayes(Y ~ ., data = nb_train[, c("Y", nb_vars)], laplace = 1)
 P_nb   <- predict(nb_fit, nb_test[, nb_vars], type = "raw")   # soft posteriors, columns = Ball, Strike, InPlay
+colnames(P_nb) <- classes
 ```
 
+
+Naive Bayes assumes the features are conditionally independent given the pitch result. Numeric features (velocity, spin rate, horizontal and vertical break) follow Gaussian class-conditional densities. Categorical features (pitch type, balls, strikes, batter side, pitcher hand) use class-conditional frequency tables.
+
+In the density plots above, each show one numeric predictor, with one curve representing one pitch result. In every density plot, all lines almost completely overlap in every panel. If a ball, a strike, and ball put in play pitch all have nearly the same velocity, spin, and break distributions, those features can barely tell the classes apart. 
+
+Another thing to note is that the density curves are not Gaussian, or Normal. Vertical break (pfx_z) and release speed (release_speed) are bimodal and horizontal break (pfx_x) is pretty bumpy. The best distribution is release spin rate (release_spin_rate), which has a dominant peak, but is not completely smooth.
+
+
 ```{r, echo=FALSE}
-train %>%
+kable(zero_check, row.names = FALSE,
+      caption = "Zero-frequency check: empty feature-level-by-class cells.")
+
+training_df %>%
   select(Y, release_speed, release_spin_rate, pfx_x, pfx_z) %>%
   pivot_longer(-Y) %>%
   ggplot(aes(value, colour = Y)) + geom_density() +
@@ -341,12 +458,6 @@ train %>%
 
 kable(num_cor, caption = "Correlation among numeric predictors.")
 ```
-
-Naive Bayes assumes the features are conditionally independent given the pitch result. Numeric features (velocity, spin rate, horizontal and vertical break) follow Gaussian class-conditional densities. Categorical features (pitch type, balls, strikes, batter side, pitcher hand) use class-conditional frequency tables.
-
-In the density plots above, each show one numeric predictor, with one curve representing one pitch result. In every density plot, all lines almost completely overlap in every panel. If a ball, a strike, and ball put in play pitch all have nearly the same velocity, spin, and break distributions, those features can barely tell the classes apart. 
-
-Another thing to note is that the density curves are not Gaussian, or Normal. Vertical break (pfx_z) and release speed (release_speed) are bimodal and horizontal break (pfx_x) is pretty bumpy. The best distribution is release spin rate (release_spin_rate), which has a dominant peak, but is not completely smooth. 
 
 Looking at the correlation table, most pairs are close to zero. The exception is release_speed and pfx_z, which have a value of 0.72. This is likely because faster pitches tend to have more vertical movement. Since Naive Bayes treats the two features as independent evidence, it essentially counts the same information twice. That tends to make its probabilities more extreme than they should be, which the calibration plot should show.
 
@@ -358,7 +469,7 @@ Given the information above, we suggest that there is not independence within th
 kable(zero_check, row.names = FALSE, caption = "Zero-frequency check, empty feature-level-by-class cells.")
 ```
 
-Every categorical feature (pitch type, balls, strikes, batter side, pitcher hand) was checked for feature-level-by-class combinations with no training observations, and found none. Regardless, we used Laplace smoothing (`laplace = 1`) so that a feature level never seen with a class in training cannot force that class's posterior to exactly zero. We extracted both the hard predicted classes (argmax of the posterior) and the soft posteriors $\widehat{P}(Y = k \mid \mathbf{x})$.
+Every categorical feature (pitch type, balls, strikes, batter side, pitcher hand) was checked for feature-level-by-class combinations with no training observations, and found none. Regardless, we used Laplace smoothing (laplace = 1) so that a feature level never seen with a class in training cannot force that class's posterior to exactly zero. We extracted both the hard predicted classes (argmax of the posterior) and the soft posteriors $\hat{P}(Y = k \mid X)$.
 
 **Hard Predicted Classes and Soft Posteriors:** 
 ```{r, echo = FALSE}
@@ -366,24 +477,25 @@ Every categorical feature (pitch type, balls, strikes, batter side, pitcher hand
 pred_nb <- max.col(P_nb, ties.method = "first")
 
 # First 6 test pitches
-post_tab <- data.frame(Actual = test$Y, round(P_nb, 3), Predicted = classes[pred_nb])[1:6, ]
+post_tab <- data.frame(Actual = testing_df$Y, round(P_nb, 3), Predicted = classes[pred_nb])[1:6, ]
 kable(post_tab, row.names = FALSE,
-      caption = "Naive Bayes soft posteriors $\\widehat{P}(Y = k \\mid \\mathbf{x})$ and hard predicted class for the first six test pitches.")
+      caption = "Naive Bayes soft posteriors $\\widehat{P}(Y = k \\mid X)$ and hard predicted class for the first six test pitches.")
 ```
 
 **Confusion Matrix:** 
 ```{r, echo = FALSE}
-# Naive Bayes confusion matrix (test set)
-kable(table(Predicted = classes[pred_nb], Actual = classes[as.integer(test$Y)]),
-      caption = "Naive Bayes confusion matrix (test set).")
+# Naive Bayes confusion matrix (test set); rows = predicted, columns = actual
+cm_nb <- table(predicted = factor(classes[pred_nb], levels = classes),
+               actual = factor(classes[as.integer(testing_df$Y)], levels = classes))
+kable(cm_nb, caption ="Naive Bayes confusion matrix (test set)")
 ```
 
 
 # 4. Analysis, Tuning & Results
 <!-- 
-* Include tuning plots and tables for the optimal k selection (regression and classification).
+* NEED TO DO THIS: Include tuning plots and tables for the optimal k selection (regression and classification).
 * Provide the comparative evaluation table of classification metrics described in Section 4 (both models plus the no-skill baseline), with a sentence justifying your choice of metrics.
-* Include at least one visualization contrasting the behavior of Naive Bayes and kNN, e.g., ROC curves overlaid on the same axes (binary), a calibration plot, or a 2D decision boundary plot.
+* NEED TO DO THIS: Include at least one visualization contrasting the behavior of Naive Bayes and kNN, e.g., ROC curves overlaid on the same axes (binary), a calibration plot, or a 2D decision boundary plot.
 ---> 
 
 ## 4.1: Regression (kNN Regression)
@@ -393,21 +505,142 @@ kable(table(Predicted = classes[pred_nb], Actual = classes[as.integer(test$Y)]),
 **Coefficient of Determination** ($R^2$)**:**
 
 ## 4.2 Classification (kNN & Naive Bayes)
+```{r, echo=FALSE}
+P_null <- matrix(as.numeric(pi_train), nrow = nrow(testing_df), ncol = K,
+                    byrow = TRUE, dimnames = list(NULL, classes))
+pred_null <- rep(which.max(pi_train), length(yte))
+
+# Evaluate one model on the test set (multi-class)
+eval_model <- function(P, y, pred) {
+  n <- length(y)
+  tab <- table(Pred = factor(pred, 1:K), Actual = factor(y, 1:K))
+  tp <- diag(tab);  rs <- rowSums(tab);  cs <- colSums(tab)
+  rec <- tp / cs
+  prec <- ifelse(rs > 0, tp / rs, 0)
+  f1 <- ifelse(prec + rec > 0, 2 * prec * rec / (prec + rec), 0)
+  po <- sum(tp) / n;  pe <- sum(rs * cs) / n^2
+  den <- sqrt((n^2 - sum(rs^2)) * (n^2 - sum(cs^2)))
+  Y1 <- diag(K)[y, ]
+  c(Accuracy = po,
+    BalancedAcc = mean(rec),
+    MacroF1 = mean(f1),
+    MCC = ifelse(den > 0, (sum(tp) * n - sum(rs * cs)) / den, 0),
+    Kappa = (po - pe) / (1 - pe),
+    LogLoss = multi_log_loss(y, P),
+    Brier = mean(rowSums((P - Y1)^2))) 
+}
+
+res <- rbind("No-skill baseline" = eval_model(P_null, yte, pred_null),
+             "kNN" = eval_model(P_knn,  yte, pred_knn),
+             "Naive Bayes" = eval_model(P_nb,   yte, pred_nb))
+res <- cbind(res, LL_Improvement = 1 - res[, "LogLoss"] / res["No-skill baseline", "LogLoss"])
+```
 
 **Confusion Matrices**
+```{r, echo=FALSE}
+cm_knn <- table(predicted = factor(classes[pred_knn], levels = classes),
+                actual = factor(classes[yte], levels = classes))
+cm_nb <- table(predicted = factor(classes[pred_nb], levels = classes),
+                actual = factor(classes[yte], levels = classes))
+
+kable(cm_knn, caption = paste0("kNN (k* = ", k_star, ") confusion matrix. Rows = predicted, columns = actual."))
+kable(cm_nb, caption = "Naive Bayes confusion matrix. Rows = predicted, columns = actual.")
+```
+
+Looking at both confusion matrices of kNN and Naive Bayes, both models most accurately predict Strike. For kNN, accuracy is 0.469, which is essentially the same as always guessing Strike (4.667). Therefore, accuracy here is misleading. Its accuracy matches the basebling only because it predicts the majority class almost every time. 
+
+A worthy note is that kNN does not predict InPlay at all. This is because of the large k (201). While Naive Bayes was able to predict all three classes, it only predicted InPlay 63 times, and mostly wrong. 
+
 **Log-loss from the predicted probabilites**
-* Binary targets
-* Multi-class targets
+```{r, echo=FALSE}
+ll_tab <- data.frame(
+  Model    = c("No-skill baseline", "kNN", "Naive Bayes"),
+  LogLoss  = round(res[, "LogLoss"], 4))
+
+kable(ll_tab, row.names = FALSE,
+      caption = "Multi-class log-loss on the test set, computed from smoothed kNN vote fractions and Naive Bayes posteriors.")
+```
+
+The table above represents the log-loss from the predicted probabilities. For log-loss, the lower the value the better. When compared to the null baseline model, kNN produces a smaller log-loss value while naive bayes grew. Therefore, by this metric, we suggest kNN is better.
 
 **Null Baseline Entropy**
+```{r, echo=FALSE}
+entropy_tab <- data.frame(
+  Quantity = c("Null baseline entropy, $-\\sum_k \\pi_k \\ln \\pi_k$ (training proportions)",
+               "Maximum possible entropy, $\\ln K$",
+               "No-skill log-loss on the test set",
+               "kNN improvement over null",
+               "Naive Bayes improvement over null"),
+  Value = c(round(null_ll_train, 4),
+            round(log(K), 4),
+            round(res["No-skill baseline", "LogLoss"], 4),
+            sprintf("%+.1f%%", 100 * res["kNN", "LL_Improvement"]),
+            sprintf("%+.1f%%", 100 * res["Naive Bayes", "LL_Improvement"])))
 
-At least three more metrics of your choice
-Choose at least three additional metrics, including at least one from each group:
+kable(entropy_tab, row.names = FALSE,
+      caption = "Null baseline entropy and each model's relative log-loss improvement, $1 - \\text{LL}_{\\text{model}}/\\text{LL}_{\\text{null}}$.")
+```
+
+The table above represents null baseline entropy. From the plot above, kNN make a 1.0133 improvement from the null model, while Naive Bayes decreases by 1.7. Therefore, by this metric, we suggest kNN is better.
+
+**Balanced Accuracy**
+```{r, echo=FALSE}
+ba_tab <- data.frame(
+  Model = c("No-skill baseline", "kNN", "Naive Bayes"),
+  `Balanced accuracy` = c(1 / K, res["kNN", "BalancedAcc"], res["Naive Bayes", "BalancedAcc"]),
+  check.names = FALSE)
+ba_tab$`Difference from baseline` <- ba_tab$`Balanced accuracy` - 1 / K
+
+kable(ba_tab, digits = 4, row.names = FALSE,
+      caption = "Balanced accuracy on the test set. The no-skill baseline is $1/K$; higher is better.")
+```
+
+The plot above represents the balanced accuracy of kNN and Naive Bayes. For balanced accuracy, the higher the number the better. kNN had a positive increased of 0.0137. On the other hand, Naive Bayes had a slightly bigger positive increase of 0.0144. Therefore, based off this metric, we can conclude that Naive Bayes is better.
+
+
+**Matthews Correlation Coefficient**
+```{r, echo=FALSE}
+mcc_tab <- data.frame(
+  Model = c("No-skill baseline", "kNN", "Naive Bayes"),
+  MCC = c(0, res["kNN", "MCC"], res["Naive Bayes", "MCC"]))
+mcc_tab$`Difference from baseline` <- mcc_tab$MCC - 0
+
+kable(mcc_tab, digits = 4, row.names = FALSE,
+      caption = "Matthews correlation coefficient on the test set.")
+```
+
+The plot above represent the MCC (Matthews Correlation Coefficient) of kNN and Naive Bayes. MCC prefers a higher number. Looking at the plot above, kNN had a positive difference of 0.0427 while Naive Bayes had a positive, but not as positive, difference of 0.0327. Therefore, based off this metric, kNN is better. 
+
+
+**Brier Score**
+```{r, echo=FALSE}
+brier_null <- 1 - sum(pi_train^2)
+
+brier_tab <- data.frame(
+  Model = c("No-skill baseline", "kNN", "Naive Bayes"),
+  `Brier score` = c(brier_null, res["kNN", "Brier"], res["Naive Bayes", "Brier"]),
+  check.names = FALSE)
+brier_tab$`Difference from baseline` <- brier_tab$`Brier score` - brier_null
+
+kable(brier_tab, digits = 4, row.names = FALSE,
+      caption = "Multi-class Brier score on the test set.")
+```
+
+The plot above represents the multi-class Brier score. We want the Brier score to be as low as possible, so ideally we want kNN and Naive Bayes to have a negative difference from the baseline. Looking at the plot above, kNN barely changes from the null model and Naive Bayes make a positive improvement. Therefore, the no-skill model is the best. 
+
 
 # 5. Discussion & Real-World Implications
 <!-- 
 address the discussion prompts listed in Section 6.
 --->
+**Accuracy vs. Log-Loss Discrepancies**
+
+**Generative vs. non-parametric trade-offs**
+
+**Neighborhood size behavior in kNN**
+
+**Real-world decision context**
+
 
 # 6. Citations & Data Link
 <!-- 
@@ -421,6 +654,8 @@ Data File: [Clean Data](https://docs.google.com/spreadsheets/d/1_zxPBT3iTcbFs3Pd
 <!-- 
 all clean, commented R code necessary to fully reproduce your training splits, models, metric calculations, tables, and figures.
 --->
+
+
 
 
 
