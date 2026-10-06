@@ -620,7 +620,7 @@ ggplot(cal, aes(mean_pred, obs_freq, colour = model)) +
   facet_wrap(~ class) +
   coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
   labs(x = "Mean predicted probability", y = "Observed frequency", 
-       title = "Calibration Plot of kNN and Naive Bayes",
+       title = "Calibration Plots of kNN and Naive Bayes",
        colour = NULL, size = "Pitches") +
   theme(legend.position = "bottom")
 ```
