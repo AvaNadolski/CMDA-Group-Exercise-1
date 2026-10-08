@@ -12,6 +12,7 @@ output:
 header-includes:
 - \definecolor{VTmaroon}{HTML}{861F41}
 - \usecolortheme[named=VTmaroon]{structure}
+- \usepackage{tikz}
 ---
 
 ```{r setup, include=FALSE}
@@ -27,34 +28,239 @@ knitr::knit_hooks$set(chunk = function(x, options) {
 ```
 
 ## Introduction & Research Questions
+**Data**
 
-Context & Data: Briefly introduce your dataset (source, scope, key variables, and sample size).
-Research Motivation: Clearly articulate 1–2 primary research questions you set out to answer and why they matter.
+- Play-by-play from Baseball Savant. 
+- 25000 observations
+- 100 categorical/numerical variables
 
-**Data:**
+**Research Questions**
 
+- **Regression:** Can we predict how far a ball will go given predictors launch speed/angle, attack angle/direction, swing path tilt, and horizontal distance between batter's center of mass and contact point.
 
-**Research Questions:**
+- **Classification:** Can we accurately predict a pitch result (ball/strike/in play) from pre-pitch information such as pitch type, ball-strike count, velocity, spin rate, horizontal/vertical break, and pitcher/batter handedness. And how does it compare from kNN and Naive Bayes?
+  -Why?: Pitchers, catchers, and defenses could anticipate what a pitch will produce.
 
-- Regression:
-- Classification:
-
-## Exploratory Data Analysis (EDA)
+## Regression: Exploratory Data Analysis (EDA)
 
 Visual Storytelling: Present key summary visualizations or tables from your EDA that directly motivate or support your research questions.
 Insights: Highlight any interesting patterns, anomalies, or distributions discovered prior to modeling.
 
-## Data Science Methods & Techniques
 
-Methodology: Explain the quantitative/analytical techniques, algorithms, or statistical models used to address your research questions.
-Justification: Briefly justify why these methods were appropriate for your data structure and research goals.
+## Regression: Data Science Methods & Techniques
 
-## Results & Key Findings
-Model/Analytical Output: Summarize primary outputs (e.g., coefficient tables, performance metrics, cluster plots, or prediction accuracy) in an intuitive, accessible layout.
-Interpretation: Clearly state the answer to your research questions based on the evidence.
+**Methodology**
+
+**Justification**
+
+
+## Regression: Results & Key Findings
+
+
+
+
+## Classification: Exploratory Data Analysis (EDA)
+::::{.columns}
+:::{.column width="35%"}
+
+ \hfill\break
+  \hfill\break
+   \hfill\break
+    \hfill\break
+     \hfill\break
+      \hfill\break
+
+- Pitch type influences strike percentage.
+```{r, echo=FALSE}
+baseballData <- read.csv("/Users/avanadolski/Desktop/CMDA4654/Group HW 1 Part A/savant_data.csv")
+library(ggplot2)
+```
+:::
+:::{.column width="65%"}
+```{r, echo = FALSE, fig.height=2.8, fig.width=3.7, fig.align='right'}
+# remove null values
+baseballData_clean <- baseballData[!is.na(baseballData$pitch_name) & baseballData$pitch_name != "", ]
+# aggregate pitch name into strike percentage categories
+pitch_summary <- aggregate(
+type ~ pitch_name,
+data = baseballData_clean,
+# calculating strike percentage
+FUN = function(x) c(n = length(x), strike_pct = mean(x %in% c("S", "X")) * 100))
+# put all values into a new data frame
+pitch_summary <- data.frame(
+pitch_name = pitch_summary$pitch_name,
+n_pitches = pitch_summary$type[, "n"],
+strike_pct = pitch_summary$type[, "strike_pct"]
+)
+# remove pitches that are rare
+pitch_summary <- pitch_summary[pitch_summary$n_pitches >= 10, ]
+# create plot
+ggplot(pitch_summary, aes(x = reorder(pitch_name, strike_pct), y = strike_pct)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = round(strike_pct, 1)), hjust = -0.1) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  coord_flip() +
+  labs(
+    title = "Strike Percentage by Pitch Type",
+    x = "Pitch Type",
+    y = "Strike %"
+  ) +
+  theme_minimal(base_size = 9)+
+  theme(plot.title.position = "plot")
+```
+:::
+::::
+
+## Classification: Exploratory Data Analysis (EDA)
+::::{.columns}
+:::{.column width="35%"}
+
+ \hfill\break
+  \hfill\break
+   \hfill\break
+    \hfill\break
+     \hfill\break
+      \hfill\break
+
+- Influence of ball-strike count on pitch types.
+
+:::
+:::{.column width="65%"}
+```{r, echo = FALSE, fig.height=2.8, fig.width=3.7, fig.align='right'}
+# define more general pitch type groupings
+fastballs <- c("4-Seam Fastball", "Sinker", "Cutter", "Fastball")
+breaking <- c("Slider", "Curveball", "Sweeper", "Slurve", "Knuckle Curve", "Screwball", "Slow Curve")
+offspeed <- c("Changeup", "Splitter", "Forkball", "Eephus", "Knuckleball", "Slurve")
+# group pitch types based on the above groupings
+pitch_group <- ifelse(
+baseballData$pitch_name %in% fastballs, "Fastball",
+ifelse(baseballData$pitch_name %in% breaking, "Breaking Ball",
+ifelse(baseballData$pitch_name %in% offspeed, "Offspeed", "Other"))
+)
+# combine balls and strikes into one value
+count <- paste(baseballData$balls, baseballData$strikes, sep = "-")
+# factor new count variable
+count_order <- c("0-0","0-1","0-2","1-0","1-1","1-2","2-0","2-1","2-2","3-0","3-1","3-2")
+count <- factor(count, levels = count_order)
+# create plot
+ggplot(baseballData, aes(x = count, fill = pitch_group)) +
+geom_bar(position = "fill") +
+scale_y_continuous(labels = scales::percent) +
+scale_fill_manual(values = c(
+"Fastball" = 'darkblue',
+"Breaking Ball" = "blue",
+"Offspeed" = "lightblue",
+"Other" = "grey"
+)) +
+labs(
+title = "Which Pitch is Most Common Given a Specific Count",
+x = "Count (Balls-Strikes)",
+y = "Proportion of Pitches",
+fill = "Pitch Category"
+) +
+theme_minimal(base_size = 6) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+:::
+::::
+
+## Classification: Exploratory Data Analysis (EDA)
+
+- Training proportions heavily favor Strike. 
+
+|Class  | Proportion|
+|:------|----------:|
+|Ball   |      0.354|
+|Strike |      0.481|
+|InPlay |      0.165|
+
+
+## Classification: Data Science Methods & Techniques
+
+**Shared setup:** 80/20 train/test split, tuning training data only, pitch types with under 50 training pitches were collapsed into "Other".
+
+:::::: {.columns}
+::: {.column width="50%"}
+**kNN**
+
+- Pitch name, pitcher hand, batter stance are dummy coded (no natural order)
+- Numeric features z-scored.
+- k* = 201, chosen by 5-fold CV on log-loss.
+- Smoothed vote fractions give probabilities (no zeros).
+:::
+::: {.column width="50%"}
+**Naive Bayes**
+
+- Numeric features: Gaussian densities so no scaling needed
+- Pitch name, hands, balls, strikes is treated with Laplace smoothing
+:::
+::::::
+
+
+## Classification: Key Findings
+- kNN stays near the diagonal, but only because k = 201 pulls its probabilities toward the class rates.
+- Naive Bayes’ curves are flatter than the diagonal in the tails, which means it is overconfident.
+  - Speed and vertical break (r = 0.72) are double-counted, violates Naive Bayes' independence.
+
+\begin{center}
+\includegraphics[width=0.75\textwidth, height=0.65\textheight]{/Users/avanadolski/Desktop/calibrationplots.png}
+\end{center}
+
+## Classification: Key Findings
+Confusion matrices. Rows = predicted, columns = actual.
+
+
+:::::: {.columns}
+::: {.column width="50%"}
+
+
+
+| kNN  | Ball| Strike| InPlay|
+|:------|----:|------:|------:|
+|Ball   |  312|    305|    139|
+|Strike | 1503|   2025|    703|
+|InPlay |    0|      0|      0|
+
+:::
+::: {.column width="50%"}
+
+
+
+|Naive Bayes| Ball| Strike| InPlay|
+|:------|----:|------:|------:|
+|Ball   |  535|    599|    219|
+|Strike | 1257|   1705|    609|
+|InPlay |   23|     26|     14|
+
+:::
+::::::
+
+## Classification: Key Findings
+
+
+|Metric                         | No-skill baseline|    kNN| Naive Bayes|Better model |
+|:------------------------------|-----------------:|------:|-----------:|:------------|
+|Accuracy                       |            0.4672| 0.4686|      0.4520|kNN          |
+|Balanced accuracy              |            0.3333| 0.3470|      0.3477|Naive Bayes  |
+|MCC                            |            0.0000| 0.0427|      0.0327|kNN          |
+|Log-loss                       |            1.0241| 1.0133|      1.0413|kNN          |
+|Log-loss improvement over null |            0.0000| 0.0105|     -0.0168|kNN          |
+|Brier score                    |            0.6211| 0.6166|      0.6344|kNN          |
+
+  
+- kNN wins for all except balanced accuracy, but not by much. Therefore, **kNN predicts  better**, but only at a slight margin.
+
 
 ## Impact & Discussion
-So What? Discuss why these results are important, actionable, or impactful in a broader real-world or domain context.
+
+
+**Regression:**
+
+**Classification:**
+
+- Costly misses: Missing a ball hurts the defense the most, both models do a poor job at predicting them.
+- Remove double counted variables: Release speed and vertical break are strongly correlated, so Naive Bayes is counting same information twice.
+- Need better/more predictor variables: Spin, speed, and break carry little signal. 
 
 
 
