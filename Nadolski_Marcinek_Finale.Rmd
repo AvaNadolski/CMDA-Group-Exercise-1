@@ -215,7 +215,7 @@ Confusion matrices. Rows = predicted, columns = actual.
 
 
 
-| kNN  | Ball| Strike| InPlay|
+| **kNN**  | Ball| Strike| InPlay|
 |:------|----:|------:|------:|
 |Ball   |  312|    305|    139|
 |Strike | 1503|   2025|    703|
@@ -226,7 +226,7 @@ Confusion matrices. Rows = predicted, columns = actual.
 
 
 
-|Naive Bayes| Ball| Strike| InPlay|
+|**Naive Bayes**| Ball| Strike| InPlay|
 |:------|----:|------:|------:|
 |Ball   |  535|    599|    219|
 |Strike | 1257|   1705|    609|
@@ -234,6 +234,8 @@ Confusion matrices. Rows = predicted, columns = actual.
 
 :::
 ::::::
+- Both models most accurately predict Strike.
+- For kNN, InPlay is never predicted. Likely because the no-skill baseline is 0.165.
 
 ## Classification: Key Findings
 
@@ -260,7 +262,7 @@ Confusion matrices. Rows = predicted, columns = actual.
 
 - Costly misses: Missing a ball hurts the defense the most, both models do a poor job at predicting them.
 - Remove double counted variables: Release speed and vertical break are strongly correlated, so Naive Bayes is counting same information twice.
-- Need better/more predictor variables: Spin, speed, and break carry little signal. 
+- Need better/more predictor variables: Spin, speed, and break carry little signal.  
 
 
 
